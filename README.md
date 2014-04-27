@@ -1,4 +1,4 @@
-php-cassandra PHP Driver/Extension For Apache Cassandra (alpha)
+php-cassandra - PHP Driver/Extension For Apache Cassandra (alpha)
 =============
 
 A PHP driver for Apache Cassandra. This driver works exclusively with the Cassandra Query Language version 3 (CQL3) and Cassandra's binary protocol.
@@ -25,6 +25,8 @@ After ```make``` you can check extension
 ```
 php -d="extension=modules/cassandra.so" -m
 ```
+
+Don't forget to add extension to your php.ini if you'll try next example
 
 ## Bugs
 The official c++ driver has bug when try to commit bad cql(Cassandra Query Language). After that the script will be killed with segmentation fault. 
