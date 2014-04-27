@@ -96,13 +96,6 @@ struct cql_result_object {
     boost::shared_ptr<cql::cql_result_t>   cql_result;
 };
 
-void             php_builder_object_free_storage(void *object TSRMLS_DC);
-void             php_cluster_object_free_storage(void *object TSRMLS_DC);
-void             php_future_result_object_free_storage(void *object TSRMLS_DC);
-void             php_query_object_free_storage(void *object TSRMLS_DC);
-void             php_session_object_free_storage(void *object TSRMLS_DC);
-void             php_result_object_free_storage(void *object TSRMLS_DC);
-
 zend_object_value php_cql_builder_object_new(zend_class_entry *type TSRMLS_DC);
 zend_object_value php_cql_cluster_object_new(zend_class_entry *type TSRMLS_DC);
 zend_object_value php_cql_future_result_object_new(zend_class_entry *type TSRMLS_DC);
@@ -314,60 +307,6 @@ const zend_function_entry cassandra_functions[] = {
 	PHP_FE_END
 };
 
-void
-php_builder_object_free_storage(void * object TSRMLS_DC)
-{
-	cql_builder_object * obj = (cql_builder_object *) object;
-
-    zend_hash_destroy(obj->std.properties);
-    efree(obj);
-}
-
-void
-php_cluster_object_free_storage(void * object TSRMLS_DC)
-{
-	cql_cluster_object * obj = (cql_cluster_object *) object;
-
-    zend_hash_destroy(obj->std.properties);
-    efree(obj);
-}
-
-void
-php_future_result_object_free_storage(void * object TSRMLS_DC)
-{
-	cql_future_result_object * obj = (cql_future_result_object *) object;
-
-    zend_hash_destroy(obj->std.properties);
-    efree(obj);
-}
-
-void
-php_query_object_free_storage(void * object TSRMLS_DC)
-{
-	cql_query_object * obj = (cql_query_object *) object;
-
-    zend_hash_destroy(obj->std.properties);
-    efree(obj);
-}
-
-void
-php_session_object_free_storage(void * object TSRMLS_DC)
-{
-	cql_session_object * obj = (cql_session_object *) object;
-
-    zend_hash_destroy(obj->std.properties);
-    efree(obj);
-}
-
-void
-php_result_object_free_storage(void * object TSRMLS_DC)
-{
-	cql_result_object * obj = (cql_result_object *) object;
-
-    zend_hash_destroy(obj->std.properties);
-    efree(obj);
-}
-
 /* {{{ Construct object in php space */
 void
 helper_php_object_construct(zval * object, zend_class_entry * class_entry, zval **params[], zend_uint param_count)
@@ -406,7 +345,7 @@ php_cql_builder_object_new(zend_class_entry *type TSRMLS_DC)
     zend_object_std_init(&obj->std, type);
     object_properties_init(&obj->std, type);
 
-    retval.handle   = zend_objects_store_put(obj, NULL, php_builder_object_free_storage, NULL TSRMLS_CC);
+    retval.handle   = zend_objects_store_put(obj, NULL, NULL, NULL TSRMLS_CC);
     retval.handlers = &cql_builder_handlers;
 
     return retval;
@@ -425,7 +364,7 @@ php_cql_cluster_object_new(zend_class_entry *type TSRMLS_DC)
     zend_object_std_init(&obj->std, type);
 	object_properties_init(&obj->std, type);
 
-    retval.handle   = zend_objects_store_put(obj, NULL, php_cluster_object_free_storage, NULL TSRMLS_CC);
+    retval.handle   = zend_objects_store_put(obj, NULL, NULL, NULL TSRMLS_CC);
     retval.handlers = &cql_cluster_handlers;
 
     return retval;
@@ -444,7 +383,7 @@ php_cql_future_result_object_new(zend_class_entry *type TSRMLS_DC)
     zend_object_std_init(&obj->std, type);
     object_properties_init(&obj->std, type);
 
-    retval.handle   = zend_objects_store_put(obj, NULL, php_future_result_object_free_storage, NULL TSRMLS_CC);
+    retval.handle   = zend_objects_store_put(obj, NULL, NULL, NULL TSRMLS_CC);
     retval.handlers = &cql_future_result_handlers;
 
     return retval;
@@ -463,7 +402,7 @@ php_cql_query_object_new(zend_class_entry *type TSRMLS_DC)
     zend_object_std_init(&obj->std, type);
 	object_properties_init(&obj->std, type);
 
-    retval.handle   = zend_objects_store_put(obj, NULL, php_query_object_free_storage, NULL TSRMLS_CC);
+    retval.handle   = zend_objects_store_put(obj, NULL, NULL, NULL TSRMLS_CC);
     retval.handlers = &cql_query_handlers;
 
     return retval;
@@ -482,7 +421,7 @@ php_cql_session_object_new(zend_class_entry *type TSRMLS_DC)
     zend_object_std_init(&obj->std, type);
 	object_properties_init(&obj->std, type);
 
-    retval.handle   = zend_objects_store_put(obj, NULL, php_session_object_free_storage, NULL TSRMLS_CC);
+    retval.handle   = zend_objects_store_put(obj, NULL, NULL, NULL TSRMLS_CC);
     retval.handlers = &cql_session_handlers;
 
     return retval;
@@ -501,7 +440,7 @@ php_cql_result_object_new(zend_class_entry *type TSRMLS_DC)
     zend_object_std_init(&obj->std, type);
     object_properties_init(&obj->std, type);
 
-    retval.handle   = zend_objects_store_put(obj, NULL, php_result_object_free_storage, NULL TSRMLS_CC);
+    retval.handle   = zend_objects_store_put(obj, NULL, NULL, NULL TSRMLS_CC);
     retval.handlers = &cql_result_handlers;
 
     return retval;
