@@ -20,16 +20,13 @@ cd php-cassandra
 phpize && ./configure && make
 ```
 
-After ```make``` you can check extension
+After ```make``` you can check extension and see cassandra module
 
 ```
 php -d="extension=modules/cassandra.so" -m
 ```
 
 Don't forget to add extension to your php.ini if you'll try next example
-
-## Bugs
-The official c++ driver has bug when try to commit bad cql(Cassandra Query Language). After that the script will be killed with segmentation fault. 
 
 ## Examples
 ### Minimal Working Example - simple query against system.schema_keyspaces.
@@ -55,3 +52,6 @@ while ($result->next()) {
 $session->close();
 $cluster->shutdown();
 ```
+
+## Bugs
+The official c++ driver has bug when try to commit bad cql(Cassandra Query Language). After that the script will be killed with segmentation fault. 
