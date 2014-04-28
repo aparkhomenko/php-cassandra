@@ -41,7 +41,7 @@ LD_LIBRARY_PATH=/usr/local/lib php -d="extension=modules/cassandra.so" -m
 Or you can create symlink
 
 ```
-sudo ln -s /usr/local/lib/libcql.so /usr/lib/libcql.so
+sudo ln -s /usr/local/lib/libcql.so.0 /usr/lib/libcql.so.0
 ```
 
 Don't forget to add extension to your php.ini if you'll try next example
