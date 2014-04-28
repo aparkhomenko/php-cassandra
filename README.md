@@ -52,6 +52,3 @@ while ($result->next()) {
 $session->close();
 $cluster->shutdown();
 ```
-
-## Bugs
-The official c++ driver has bug when try to commit bad cql(Cassandra Query Language). After that the script will be killed with segmentation fault. 

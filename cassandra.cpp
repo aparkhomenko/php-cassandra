@@ -600,6 +600,10 @@ PHP_METHOD(CqlFutureResult, getResult)
 		RETURN_NULL();
 	}
 
+	if (obj->cql_future_result.get().error.is_err()) {
+		RETURN_NULL();
+	}
+
 	Z_TYPE_P(return_value) = IS_OBJECT;
 	object_init_ex(return_value, php_cql_result_sc_entry);
 	return_value->refcount__gc = 1;
