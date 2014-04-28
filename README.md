@@ -26,6 +26,24 @@ After ```make``` you can check extension and see cassandra module
 php -d="extension=modules/cassandra.so" -m
 ```
 
+##Troubleshooting Common Problems
+
+- If you'll see the message
+```
+PHP Warning: PHP Startup: Unable to load dynamic library 'modules/cassandra.so' - libcql.so.0: cannot open shared object file: No such file or directory in Unknown on line 0
+```
+
+Try to add path to cql library. On Debian system cql library installed to /usr/local/lib
+```
+LD_LIBRARY_PATH=/usr/local/lib php -d="extension=modules/cassandra.so" -m
+```
+
+Or you can create symlink
+
+```
+sudo ln -s /usr/local/lib/libcql.so /usr/lib/libcql.so
+```
+
 Don't forget to add extension to your php.ini if you'll try next example
 
 ## Examples

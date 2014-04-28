@@ -49,22 +49,27 @@ if test "$PHP_CASSANDRA" != "no"; then
   PHP_ADD_LIBRARY(boost_thread, 1, CASSANDRA_SHARED_LIBADD)
   PHP_ADD_LIBRARY(boost_system, 1, CASSANDRA_SHARED_LIBADD)
 
-  if test "$PHP_CQL_LIB" != "no"; then
+  if test -z "$PHP_CQL_LIB"; then
     PHP_ADD_LIBRARY_WITH_PATH($LIBNAME, $PHP_CQL_LIB, CASSANDRA_SHARED_LIBADD)
   else
 
-    dnl # PHP_CHECK_LIBRARY($LIBNAME,$LIBSYMBOL,
-    dnl # [
-    dnl #   PHP_ADD_LIBRARY_WITH_PATH($LIBNAME, $CQL_DIR/lib, CQL_SHARED_LIBADD)
-    dnl #   AC_DEFINE(HAVE_CQLLIB,0.7,[ ])
-    dnl # ],[
-    dnl #   AC_MSG_ERROR([wrong cql lib version or lib not found])
-    dnl # ],[
-    dnl #   -L$CQL_DIR/lib -lm
-    dnl # ])
-    dnl
+    SEARCH_LIB="lib$LIBNAME.so"
+    
+    AC_MSG_CHECKING(for lib CQL in default path)
+    for i in /usr/local /usr; do
+      if test -r $i/lib/$SEARCH_LIB; then
+        CQL_LIB_DIR=$i
+        AC_MSG_RESULT(found in $i)
+        break
+      fi
+    done
 
-    PHP_ADD_LIBRARY(cql, 1, CASSANDRA_SHARED_LIBADD)
+    if test -z "$CQL_LIB_DIR"; then
+      AC_MSG_RESULT([not found])
+      AC_MSG_ERROR([Please reinstall the cassandra cql library distribution])
+    fi
+
+    PHP_ADD_LIBRARY_WITH_PATH($LIBNAME, $CQL_LIB_DIR, CASSANDRA_SHARED_LIBADD)
 
   fi
 
