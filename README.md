@@ -49,24 +49,36 @@ Don't forget to add extension to your php.ini if you'll try next example
 ## Examples
 ### Minimal Working Example - simple query against system.schema_keyspaces.
 ```php
+// Suppose you have the Cassandra cluster at 127.0.0.1, 
+// listening at default port (9042).
 $builder  = new CqlBuilder();
 $builder->addContactPoint("127.0.0.1");
 
+// Now build a model of cluster and connect it to DB.
 $cluster  = $builder->build();
 $session  = $cluster->connect();
 
-$query    = new CqlQuery('SELECT * FROM system.schema_keyspaces;');
+// Write a query, switch keyspaces.
+$query    = new CqlQuery('SELECT * FROM system.schema_keyspaces');
+
+// Send the query.
 $future   = $session->query($query);
 
+// Wait for the query to execute; retrieve the result.
 $future->wait();
 $result   = $future->getResult();
 
-echo "rowCount: {$result->getRowCount()}\n";
+if (null === $future->getError()) {
 
-while ($result->next()) {
-	echo "strategy_options: " . $result->get("strategy_options") . "\n";
+	echo "rowCount: {$result->getRowCount()}\n";
+	
+	while ($result->next()) {
+		echo "strategy_options: " . $result->get("strategy_options") . "\n";
+	}
+	
 }
 
+// Boilerplate: close the connection session and perform the cleanup.
 $session->close();
 $cluster->shutdown();
 ```

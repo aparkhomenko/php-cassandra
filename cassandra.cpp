@@ -53,6 +53,7 @@ static int le_cassandra;
 zend_class_entry       * php_cql_sc_entry;
 zend_class_entry       * php_cql_builder_sc_entry;
 zend_class_entry       * php_cql_cluster_sc_entry;
+zend_class_entry       * php_cql_error_sc_entry;
 zend_class_entry       * php_cql_future_result_sc_entry;
 zend_class_entry       * php_cql_query_sc_entry;
 zend_class_entry       * php_cql_session_sc_entry;
@@ -61,6 +62,7 @@ zend_class_entry       * php_cql_result_sc_entry;
 zend_object_handlers     cql_handlers;
 zend_object_handlers     cql_builder_handlers;
 zend_object_handlers     cql_cluster_handlers;
+zend_object_handlers     cql_error_handlers;
 zend_object_handlers     cql_future_result_handlers;
 zend_object_handlers     cql_query_handlers;
 zend_object_handlers     cql_session_handlers;
@@ -74,6 +76,11 @@ struct cql_builder_object {
 struct cql_cluster_object {
     zend_object                            std;
     boost::shared_ptr<cql::cql_cluster_t>  cql_cluster;
+};
+
+struct cql_error_object {
+    zend_object                            std;
+    cql::cql_error_t                       cql_error;
 };
 
 struct cql_future_result_object {
@@ -98,6 +105,7 @@ struct cql_result_object {
 
 zend_object_value php_cql_builder_object_new(zend_class_entry *type TSRMLS_DC);
 zend_object_value php_cql_cluster_object_new(zend_class_entry *type TSRMLS_DC);
+zend_object_value php_cql_error_object_new(zend_class_entry *type TSRMLS_DC);
 zend_object_value php_cql_future_result_object_new(zend_class_entry *type TSRMLS_DC);
 zend_object_value php_cql_query_object_new(zend_class_entry *type TSRMLS_DC);
 zend_object_value php_cql_session_object_new(zend_class_entry *type TSRMLS_DC);
@@ -157,7 +165,20 @@ const zend_function_entry php_cql_cluster_class_methods[] = {
 		PHP_FE_END
 };
 
+ZEND_BEGIN_ARG_INFO_EX(cql_error_construct, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
+PHP_METHOD(CqlError, __construct);
+
+const zend_function_entry php_cql_error_class_methods[] = {
+		PHP_ME(CqlError,  __construct,     cql_error_construct, ZEND_ACC_PUBLIC|ZEND_ACC_CTOR)
+		PHP_FE_END
+};
+
 ZEND_BEGIN_ARG_INFO_EX(cql_future_result_construct, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(cql_future_result_get_error, 0, 0, 0)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(cql_future_result_get_result, 0, 0, 0)
@@ -167,12 +188,14 @@ ZEND_BEGIN_ARG_INFO_EX(cql_future_result_wait, 0, 0, 0)
 ZEND_END_ARG_INFO()
 
 PHP_METHOD(CqlFutureResult, __construct);
+PHP_METHOD(CqlFutureResult, getError);
 PHP_METHOD(CqlFutureResult, getResult);
 PHP_METHOD(CqlFutureResult, wait);
 
 const zend_function_entry php_cql_future_result_class_methods[] = {
 		PHP_ME(CqlFutureResult,  __construct,  cql_future_result_construct,   ZEND_ACC_PRIVATE|ZEND_ACC_CTOR)
 		PHP_ME(CqlFutureResult,  getResult,    cql_future_result_get_result,  ZEND_ACC_PUBLIC)
+		PHP_ME(CqlFutureResult,  getError,     cql_future_result_get_error,   ZEND_ACC_PUBLIC)
 		PHP_ME(CqlFutureResult,  wait,         cql_future_result_wait,        ZEND_ACC_PUBLIC)
 		PHP_FE_END
 };
@@ -227,10 +250,10 @@ const zend_function_entry php_cql_query_class_methods[] = {
 		PHP_ME(CqlQuery,  enableTracing,   cql_query_enable_tracing,   ZEND_ACC_PUBLIC)
 		PHP_ME(CqlQuery,  getConsistency,  cql_query_get_consistency,  ZEND_ACC_PUBLIC)
 		PHP_ME(CqlQuery,  getQueryString,  cql_query_get_query_string, ZEND_ACC_PUBLIC)
-		PHP_ME(CqlQuery,  getRetryPolicy,  cql_query_get_retry_policy, ZEND_ACC_PUBLIC)
+//		PHP_ME(CqlQuery,  getRetryPolicy,  cql_query_get_retry_policy, ZEND_ACC_PUBLIC)
 		PHP_ME(CqlQuery,  setConsistency,  cql_query_set_consistency,  ZEND_ACC_PUBLIC)
 		PHP_ME(CqlQuery,  setQueryString,  cql_query_set_query_string, ZEND_ACC_PUBLIC)
-		PHP_ME(CqlQuery,  setRetryPolicy,  cql_query_set_retry_policy, ZEND_ACC_PUBLIC)
+//		PHP_ME(CqlQuery,  setRetryPolicy,  cql_query_set_retry_policy, ZEND_ACC_PUBLIC)
 		PHP_FE_END
 };
 
@@ -366,6 +389,25 @@ php_cql_cluster_object_new(zend_class_entry *type TSRMLS_DC)
 
     retval.handle   = zend_objects_store_put(obj, NULL, NULL, NULL TSRMLS_CC);
     retval.handlers = &cql_cluster_handlers;
+
+    return retval;
+}
+
+zend_object_value
+php_cql_error_object_new(zend_class_entry *type TSRMLS_DC)
+{
+    zval *tmp;
+    zend_object_value retval;
+
+    cql_error_object *obj = (cql_error_object *) emalloc(sizeof(cql_error_object));
+    memset(obj, 0, sizeof(cql_error_object));
+    obj->std.ce = type;
+
+    zend_object_std_init(&obj->std, type);
+	object_properties_init(&obj->std, type);
+
+    retval.handle   = zend_objects_store_put(obj, NULL, NULL, NULL TSRMLS_CC);
+    retval.handlers = &cql_error_handlers;
 
     return retval;
 }
@@ -578,6 +620,11 @@ PHP_METHOD(CqlCluster, shutdown)
 	obj->cql_cluster->shutdown(timeout_ms);
 }
 
+PHP_METHOD(CqlError, __construct)
+{
+
+}
+
 /* {{{ proto CqlFutureResult::__construct()
         Constructs a new CqlFutureResult object
  */
@@ -590,6 +637,27 @@ PHP_METHOD(CqlFutureResult, wait)
 {
 	cql_future_result_object *obj = (cql_future_result_object *) zend_object_store_get_object(getThis() TSRMLS_CC);
 	obj->cql_future_result.wait();
+}
+
+PHP_METHOD(CqlFutureResult, getError)
+{
+	cql_future_result_object *obj = (cql_future_result_object *) zend_object_store_get_object(getThis() TSRMLS_CC);
+
+	if (!obj->cql_future_result.get().error.is_err()) {
+		RETURN_NULL();
+	}
+
+	zval **params[0];
+	helper_php_object_construct(return_value, php_cql_error_sc_entry, params, 0);
+
+	cql_error_object * obj_error = (cql_error_object *) zend_object_store_get_object(return_value TSRMLS_CC);
+
+	zend_update_property_bool(php_cql_error_sc_entry, return_value,   "cassandra", sizeof("cassandra")-1, obj->cql_future_result.get().error.cassandra TSRMLS_CC);
+	zend_update_property_long(php_cql_error_sc_entry, return_value,   "code", sizeof("code")-1, obj->cql_future_result.get().error.code TSRMLS_CC);
+	zend_update_property_bool(php_cql_error_sc_entry, return_value,   "hasError", sizeof("hasError")-1, obj->cql_future_result.get().error.is_err() TSRMLS_CC);
+	zend_update_property_bool(php_cql_error_sc_entry,   return_value, "library", sizeof("library")-1, obj->cql_future_result.get().error.library TSRMLS_CC);
+	zend_update_property_string(php_cql_error_sc_entry, return_value, "message", sizeof("message")-1, obj->cql_future_result.get().error.message.c_str() TSRMLS_CC);
+	zend_update_property_bool(php_cql_error_sc_entry,   return_value, "transport", sizeof("transport")-1, obj->cql_future_result.get().error.transport TSRMLS_CC);
 }
 
 PHP_METHOD(CqlFutureResult, getResult)
@@ -790,11 +858,6 @@ PHP_METHOD(CqlQuery, setRetryPolicy)
 
 }
 
-PHP_METHOD(CqlQuery, setTraced)
-{
-
-}
-
 /* CqlSession */
 
 PHP_METHOD(CqlSession, __construct)
@@ -863,8 +926,6 @@ PHP_METHOD(CqlSession, query)
 
 	try {
 
-		// TODO: все падает если приходит не верный query_string в запросе к кассандре!!!
-
 		boost::shared_future<cql::cql_future_result_t> future = obj->cql_session->query(obj_cql_query->cql_query);
 
 		Z_TYPE_P(return_value)     = IS_OBJECT;
@@ -883,7 +944,15 @@ PHP_METHOD(CqlSession, query)
 
 PHP_METHOD(CqlSession, setKeyspace)
 {
+	char * keyspace;
+	int keyspace_len;
 
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC,"s", &keyspace, &keyspace_len) == FAILURE) {
+		return;
+	}
+
+	cql_session_object *obj          = (cql_session_object *) zend_object_store_get_object(getThis() TSRMLS_CC);
+	obj->cql_session->set_keyspace(keyspace);
 }
 
 /* {{{ proto CqlResult::__construct()
@@ -996,6 +1065,7 @@ PHP_MINIT_FUNCTION(cassandra)
 	memcpy(&cql_handlers,               zend_get_std_object_handlers(), sizeof(zend_object_handlers));
 	memcpy(&cql_builder_handlers,       zend_get_std_object_handlers(), sizeof(zend_object_handlers));
 	memcpy(&cql_cluster_handlers,       zend_get_std_object_handlers(), sizeof(zend_object_handlers));
+	memcpy(&cql_error_handlers,         zend_get_std_object_handlers(), sizeof(zend_object_handlers));
 	memcpy(&cql_future_result_handlers, zend_get_std_object_handlers(), sizeof(zend_object_handlers));
 	memcpy(&cql_query_handlers,         zend_get_std_object_handlers(), sizeof(zend_object_handlers));
 	memcpy(&cql_session_handlers,       zend_get_std_object_handlers(), sizeof(zend_object_handlers));
@@ -1028,6 +1098,19 @@ PHP_MINIT_FUNCTION(cassandra)
 	php_cql_cluster_sc_entry                 = zend_register_internal_class(&ce TSRMLS_CC);
 	php_cql_cluster_sc_entry->create_object  = php_cql_cluster_object_new;
 	cql_cluster_handlers.clone_obj           = NULL;
+
+	// INIT CqlError
+	INIT_CLASS_ENTRY(ce, "CqlError", php_cql_error_class_methods);
+	php_cql_error_sc_entry                   = zend_register_internal_class(&ce TSRMLS_CC);
+	php_cql_error_sc_entry->create_object    = php_cql_error_object_new;
+	cql_cluster_handlers.clone_obj           = NULL;
+
+	zend_declare_property_null(php_cql_error_sc_entry, "cassandra", sizeof("cassandra")-1, ZEND_ACC_PUBLIC TSRMLS_CC);
+	zend_declare_property_null(php_cql_error_sc_entry, "code",      sizeof("code")-1,      ZEND_ACC_PUBLIC TSRMLS_CC);
+	zend_declare_property_null(php_cql_error_sc_entry, "hasError",  sizeof("hasError")-1,  ZEND_ACC_PUBLIC TSRMLS_CC);
+	zend_declare_property_null(php_cql_error_sc_entry, "library",   sizeof("library")-1,   ZEND_ACC_PUBLIC TSRMLS_CC);
+	zend_declare_property_null(php_cql_error_sc_entry, "message",   sizeof("message")-1,   ZEND_ACC_PUBLIC TSRMLS_CC);
+	zend_declare_property_null(php_cql_error_sc_entry, "transport", sizeof("transport")-1, ZEND_ACC_PUBLIC TSRMLS_CC);
 
 	// INIT CqlFutureResult
 	INIT_CLASS_ENTRY(ce, "CqlFutureResult", php_cql_future_result_class_methods);
