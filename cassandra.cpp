@@ -50,6 +50,12 @@ ZEND_DECLARE_MODULE_GLOBALS(cassandra)
 /* True global resources - no need for thread safety here */
 static int le_cassandra;
 
+const size_t CQL_RESULT_TYPE_BIG_INT = 0x001;
+const size_t CQL_RESULT_TYPE_BOOL    = 0x002;
+const size_t CQL_RESULT_TYPE_DOUBLE  = 0x004;
+const size_t CQL_RESULT_TYPE_INT     = 0x008;
+const size_t CQL_RESULT_TYPE_STRING  = 0x010;
+
 zend_class_entry       * php_cql_sc_entry;
 zend_class_entry       * php_cql_builder_sc_entry;
 zend_class_entry       * php_cql_cluster_sc_entry;
@@ -303,6 +309,10 @@ ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(cql_result_get, 0, 0, 1)
 	ZEND_ARG_INFO(0, column)
+	ZEND_ARG_INFO(0, typeColumn)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(cql_result_get_column_count, 0, 0, 0)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(cql_result_get_row_count, 0, 0, 0)
@@ -314,15 +324,17 @@ ZEND_END_ARG_INFO()
 PHP_METHOD(CqlResult, __construct);
 PHP_METHOD(CqlResult, exists);
 PHP_METHOD(CqlResult, get);
+PHP_METHOD(CqlResult, getColumnCount);
 PHP_METHOD(CqlResult, getRowCount);
 PHP_METHOD(CqlResult, next);
 
 const zend_function_entry php_cql_result_class_methods[] = {
-		PHP_ME(CqlResult,  __construct,  cql_result_construct,      ZEND_ACC_PRIVATE|ZEND_ACC_CTOR)
-		PHP_ME(CqlResult,  exists,       cql_result_exists,         ZEND_ACC_PUBLIC)
-		PHP_ME(CqlResult,  get,          cql_result_get,            ZEND_ACC_PUBLIC)
-		PHP_ME(CqlResult,  getRowCount,  cql_result_get_row_count,  ZEND_ACC_PUBLIC)
-		PHP_ME(CqlResult,  next,         cql_result_next,           ZEND_ACC_PUBLIC)
+		PHP_ME(CqlResult,  __construct,    cql_result_construct,        ZEND_ACC_PRIVATE|ZEND_ACC_CTOR)
+		PHP_ME(CqlResult,  exists,         cql_result_exists,           ZEND_ACC_PUBLIC)
+		PHP_ME(CqlResult,  get,            cql_result_get,              ZEND_ACC_PUBLIC)
+		PHP_ME(CqlResult,  getColumnCount, cql_result_get_column_count, ZEND_ACC_PUBLIC)
+		PHP_ME(CqlResult,  getRowCount,    cql_result_get_row_count,    ZEND_ACC_PUBLIC)
+		PHP_ME(CqlResult,  next,           cql_result_next,             ZEND_ACC_PUBLIC)
 		PHP_FE_END
 };
 
@@ -520,7 +532,7 @@ PHP_METHOD(CqlBuilder, addContactPoint)
 	int   host_len;
 	long  port      = 0;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC,"s", &host, &host_len) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC,"s|l", &host, &host_len, &port) == FAILURE) {
 		return;
 	}
 
@@ -980,17 +992,66 @@ PHP_METHOD(CqlResult, get)
 {
 	char * column;
 	int column_len;
+	long   column_type = CQL_RESULT_TYPE_STRING;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC,"s", &column, &column_len) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC,"s|l", &column, &column_len, &column_type) == FAILURE) {
 		return;
 	}
 
 	cql_result_object *obj = (cql_result_object *) zend_object_store_get_object(getThis() TSRMLS_CC);
 
-	std::string return_string;
+	switch (column_type) {
 
-	obj->cql_result->get_string(column, return_string);
-	RETURN_STRING(return_string.c_str(), 1);
+		case CQL_RESULT_TYPE_BIG_INT:
+
+			cql::cql_bigint_t return_big_int;
+			obj->cql_result->get_bigint(column, return_big_int);
+			RETURN_LONG(return_big_int);
+
+		break;
+
+		case CQL_RESULT_TYPE_BOOL:
+
+			bool return_bool;
+			obj->cql_result->get_bool(column, return_bool);
+			RETURN_BOOL(return_bool);
+
+		break;
+
+		case CQL_RESULT_TYPE_DOUBLE:
+
+			double return_double;
+			obj->cql_result->get_double(column, return_double);
+			RETURN_DOUBLE(return_double);
+
+		break;
+
+		case CQL_RESULT_TYPE_INT:
+
+			cql::cql_int_t return_int;
+			obj->cql_result->get_int(column, return_int);
+			RETURN_LONG(return_int);
+
+		break;
+
+		case CQL_RESULT_TYPE_STRING:
+
+			std::string return_string;
+
+			obj->cql_result->get_string(column, return_string);
+			RETURN_STRING(return_string.c_str(), 1);
+
+		break;
+
+	}
+
+	RETURN_NULL();
+}
+
+PHP_METHOD(CqlResult, getColumnCount)
+{
+	cql_result_object *obj = (cql_result_object *) zend_object_store_get_object(getThis() TSRMLS_CC);
+	RETURN_LONG(obj->cql_result->column_count());
 }
 
 PHP_METHOD(CqlResult, getRowCount)
@@ -1140,6 +1201,12 @@ PHP_MINIT_FUNCTION(cassandra)
 	php_cql_result_sc_entry                  = zend_register_internal_class(&ce TSRMLS_CC);
 	php_cql_result_sc_entry->create_object   = php_cql_result_object_new;
 	cql_result_handlers.clone_obj            = NULL;
+
+	zend_declare_class_constant_long(php_cql_result_sc_entry, "TYPE_BIG_INT",  sizeof("TYPE_BIG_INT")-1, CQL_RESULT_TYPE_BIG_INT TSRMLS_CC);
+	zend_declare_class_constant_long(php_cql_result_sc_entry, "TYPE_BOOL",     sizeof("TYPE_BOOL")-1,    CQL_RESULT_TYPE_BOOL TSRMLS_CC);
+	zend_declare_class_constant_long(php_cql_result_sc_entry, "TYPE_DOUBLE",   sizeof("TYPE_DOUBLE")-1,  CQL_RESULT_TYPE_DOUBLE TSRMLS_CC);
+	zend_declare_class_constant_long(php_cql_result_sc_entry, "TYPE_INT",      sizeof("TYPE_INT")-1,     CQL_RESULT_TYPE_INT TSRMLS_CC);
+	zend_declare_class_constant_long(php_cql_result_sc_entry, "TYPE_STRING",   sizeof("TYPE_STRING")-1,  CQL_RESULT_TYPE_STRING TSRMLS_CC);
 
 	cql::cql_initialize();
 	return SUCCESS;
