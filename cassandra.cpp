@@ -55,6 +55,7 @@ const size_t CQL_RESULT_TYPE_BOOL    = 0x002;
 const size_t CQL_RESULT_TYPE_DOUBLE  = 0x004;
 const size_t CQL_RESULT_TYPE_INT     = 0x008;
 const size_t CQL_RESULT_TYPE_STRING  = 0x010;
+const size_t CQL_RESULT_TYPE_UUID    = 0x020;
 
 zend_class_entry       * php_cql_sc_entry;
 zend_class_entry       * php_cql_builder_sc_entry;
@@ -1000,11 +1001,19 @@ PHP_METHOD(CqlResult, get)
 
 	cql_result_object *obj = (cql_result_object *) zend_object_store_get_object(getThis() TSRMLS_CC);
 
+	cql::cql_bigint_t return_big_int;
+	bool return_bool;
+	double return_double;
+	cql::cql_int_t return_int;
+	std::string return_string;
+
+	std::vector< cql::cql_byte_t > data;
+	std::stringstream ss;
+
 	switch (column_type) {
 
 		case CQL_RESULT_TYPE_BIG_INT:
 
-			cql::cql_bigint_t return_big_int;
 			obj->cql_result->get_bigint(column, return_big_int);
 			RETURN_LONG(return_big_int);
 
@@ -1012,7 +1021,6 @@ PHP_METHOD(CqlResult, get)
 
 		case CQL_RESULT_TYPE_BOOL:
 
-			bool return_bool;
 			obj->cql_result->get_bool(column, return_bool);
 			RETURN_BOOL(return_bool);
 
@@ -1020,7 +1028,6 @@ PHP_METHOD(CqlResult, get)
 
 		case CQL_RESULT_TYPE_DOUBLE:
 
-			double return_double;
 			obj->cql_result->get_double(column, return_double);
 			RETURN_DOUBLE(return_double);
 
@@ -1028,7 +1035,6 @@ PHP_METHOD(CqlResult, get)
 
 		case CQL_RESULT_TYPE_INT:
 
-			cql::cql_int_t return_int;
 			obj->cql_result->get_int(column, return_int);
 			RETURN_LONG(return_int);
 
@@ -1036,9 +1042,29 @@ PHP_METHOD(CqlResult, get)
 
 		case CQL_RESULT_TYPE_STRING:
 
-			std::string return_string;
-
 			obj->cql_result->get_string(column, return_string);
+			RETURN_STRING(return_string.c_str(), 1);
+
+		break;
+
+		case CQL_RESULT_TYPE_UUID:
+
+			obj->cql_result->get_data(column, data);
+
+			for (size_t i = 0; i < data.size(); ++i) {
+
+				unsigned char * ch = reinterpret_cast<unsigned char *>(&data[i]);
+
+				int c = (int) *ch;
+				ss << std::setfill('0') << std::setw(2) << std::hex << c;
+
+				if (i == 3 || i == 5 || i == 7 || i == 9) {
+					ss << "-";
+				}
+
+			}
+
+			return_string = ss.str();
 			RETURN_STRING(return_string.c_str(), 1);
 
 		break;
@@ -1207,6 +1233,7 @@ PHP_MINIT_FUNCTION(cassandra)
 	zend_declare_class_constant_long(php_cql_result_sc_entry, "TYPE_DOUBLE",   sizeof("TYPE_DOUBLE")-1,  CQL_RESULT_TYPE_DOUBLE TSRMLS_CC);
 	zend_declare_class_constant_long(php_cql_result_sc_entry, "TYPE_INT",      sizeof("TYPE_INT")-1,     CQL_RESULT_TYPE_INT TSRMLS_CC);
 	zend_declare_class_constant_long(php_cql_result_sc_entry, "TYPE_STRING",   sizeof("TYPE_STRING")-1,  CQL_RESULT_TYPE_STRING TSRMLS_CC);
+	zend_declare_class_constant_long(php_cql_result_sc_entry, "TYPE_UUID",     sizeof("TYPE_UUID")-1,    CQL_RESULT_TYPE_UUID TSRMLS_CC);
 
 	cql::cql_initialize();
 	return SUCCESS;
