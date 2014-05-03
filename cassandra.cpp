@@ -657,6 +657,7 @@ PHP_METHOD(CqlFutureResult, getError)
 
 	if (!obj->cql_future_result.get().error.is_err()) {
 		RETURN_NULL();
+		return;
 	}
 
 	zval **params[0];
@@ -678,10 +679,12 @@ PHP_METHOD(CqlFutureResult, getResult)
 
 	if (!obj->cql_future_result.is_ready()) {
 		RETURN_NULL();
+		return;
 	}
 
 	if (obj->cql_future_result.get().error.is_err()) {
 		RETURN_NULL();
+		return;
 	}
 
 	Z_TYPE_P(return_value) = IS_OBJECT;
@@ -1036,6 +1039,7 @@ PHP_METHOD(CqlResult, get)
 
 			if (column_type != orig_column_type && tmp_value_big_int == 0) {
 				RETURN_NULL();
+				return;
 			}
 
 			RETURN_LONG(tmp_value_big_int);
@@ -1048,6 +1052,7 @@ PHP_METHOD(CqlResult, get)
 
 			if (column_type != orig_column_type && !tmp_value_bool) {
 				RETURN_NULL();
+				return;
 			}
 
 			RETURN_BOOL(tmp_value_bool);
@@ -1060,6 +1065,7 @@ PHP_METHOD(CqlResult, get)
 
 			if (column_type != orig_column_type && tmp_value_double == 0) {
 				RETURN_NULL();
+				return;
 			}
 
 			RETURN_DOUBLE(tmp_value_double);
@@ -1072,6 +1078,7 @@ PHP_METHOD(CqlResult, get)
 
 			if (column_type != orig_column_type && tmp_value_float == 0) {
 				RETURN_NULL();
+				return;
 			}
 
 			RETURN_DOUBLE(tmp_value_float);
@@ -1084,6 +1091,7 @@ PHP_METHOD(CqlResult, get)
 
 			if (column_type != orig_column_type && tmp_value_int == 0) {
 				RETURN_NULL();
+				return;
 			}
 
 			RETURN_LONG(tmp_value_int);
@@ -1325,6 +1333,7 @@ PHP_METHOD(CqlResult, get)
 
 			if (column_type != orig_column_type && tmp_value_big_int == 0) {
 				RETURN_NULL();
+				return;
 			}
 
 			if (tmp_value_big_int > 1000) {
@@ -1346,6 +1355,7 @@ PHP_METHOD(CqlResult, get)
 
 			if (tmp_value_string.length() < 1) {
 				RETURN_NULL();
+				return;
 			}
 
 			RETURN_STRING(tmp_value_string.c_str(), 1);
@@ -1373,6 +1383,7 @@ PHP_METHOD(CqlResult, get)
 
 			if (tmp_value_string.length() < 1) {
 				RETURN_NULL();
+				return;
 			}
 
 			RETURN_STRING(tmp_value_string.c_str(), 1);
