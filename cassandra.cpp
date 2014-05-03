@@ -32,6 +32,11 @@ extern "C" {
 #include "ext/standard/info.h"
 #include "php_cassandra.h"
 
+#define  php_array_init(arg)			_array_init((arg), 0 ZEND_FILE_LINE_CC)
+#ifdef   array_init
+#undef   array_init
+#endif
+
 #ifdef __cplusplus
 }
 #endif
@@ -1100,7 +1105,7 @@ PHP_METHOD(CqlResult, get)
 
 		case cql::CQL_COLUMN_TYPE_MAP:
 
-			array_init(return_value);
+			php_array_init(return_value);
 			obj->cql_result->get_map(column, tmp_collection_map);
 
 			ALLOC_INIT_ZVAL(tmp_zval);
@@ -1229,7 +1234,7 @@ PHP_METHOD(CqlResult, get)
 
 		case cql::CQL_COLUMN_TYPE_LIST:
 
-			array_init(return_value);
+			php_array_init(return_value);
 
 			obj->cql_result->get_list(column, tmp_collection_list);
 
@@ -1278,7 +1283,7 @@ PHP_METHOD(CqlResult, get)
 
 		case cql::CQL_COLUMN_TYPE_SET:
 
-			array_init(return_value);
+			php_array_init(return_value);
 
 			obj->cql_result->get_set(column, tmp_collection_set);
 
