@@ -56,13 +56,6 @@ ZEND_DECLARE_MODULE_GLOBALS(cassandra)
 /* True global resources - no need for thread safety here */
 static int le_cassandra;
 
-const size_t CQL_RESULT_TYPE_BIG_INT = 0x001;
-const size_t CQL_RESULT_TYPE_BOOL    = 0x002;
-const size_t CQL_RESULT_TYPE_DOUBLE  = 0x004;
-const size_t CQL_RESULT_TYPE_INT     = 0x008;
-const size_t CQL_RESULT_TYPE_STRING  = 0x010;
-const size_t CQL_RESULT_TYPE_UUID    = 0x020;
-
 zend_class_entry       * php_cql_sc_entry;
 zend_class_entry       * php_cql_builder_sc_entry;
 zend_class_entry       * php_cql_cluster_sc_entry;
@@ -999,7 +992,7 @@ PHP_METHOD(CqlResult, get)
 {
 	char * column;
 	int column_len;
-	long   column_type = 0;
+	long   column_type = cql::CQL_COLUMN_TYPE_UNKNOWN;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC,"s|l", &column, &column_len, &column_type) == FAILURE) {
 		return;
@@ -1007,17 +1000,18 @@ PHP_METHOD(CqlResult, get)
 
 	cql_result_object *obj = (cql_result_object *) zend_object_store_get_object(getThis() TSRMLS_CC);
 
-	cql::cql_bigint_t  tmp_value_big_int;
-	bool               tmp_value_bool;
-	double             tmp_value_double;
-	float              tmp_value_float;
-	cql::cql_int_t     tmp_value_int;
+	cql::cql_bigint_t  tmp_value_big_int  = 0;
+	bool               tmp_value_bool     = false;
+	double             tmp_value_double   = 0;
+	float              tmp_value_float    = 0;
+	cql::cql_int_t     tmp_value_int      = 0;
 	std::string        tmp_value_string;
 	zval *             tmp_zval;
 	char *             tmp_key;
 	char *             tmp_value_char;
 
-	time_t ts;
+	time_t ts = 0;
+	long orig_column_type = 0;
 
 	boost::shared_ptr< cql::cql_set_t >  tmp_collection_set;
 	boost::shared_ptr< cql::cql_list_t > tmp_collection_list;
@@ -1028,12 +1022,22 @@ PHP_METHOD(CqlResult, get)
 
 	cql::cql_column_type_enum type;
 	obj->cql_result->column_type(column, type);
+	orig_column_type = static_cast<long>(type);
 
-	switch (type) {
+	if (column_type == cql::CQL_COLUMN_TYPE_UNKNOWN) {
+		column_type = orig_column_type;
+	}
+
+	switch (column_type) {
 
 		case cql::CQL_COLUMN_TYPE_BIGINT:
 
 			obj->cql_result->get_bigint(column, tmp_value_big_int);
+
+			if (column_type != orig_column_type && tmp_value_big_int == 0) {
+				RETURN_NULL();
+			}
+
 			RETURN_LONG(tmp_value_big_int);
 
 		break;
@@ -1041,6 +1045,11 @@ PHP_METHOD(CqlResult, get)
 		case cql::CQL_COLUMN_TYPE_BOOLEAN:
 
 			obj->cql_result->get_bool(column, tmp_value_bool);
+
+			if (column_type != orig_column_type && !tmp_value_bool) {
+				RETURN_NULL();
+			}
+
 			RETURN_BOOL(tmp_value_bool);
 
 		break;
@@ -1048,6 +1057,11 @@ PHP_METHOD(CqlResult, get)
 		case cql::CQL_COLUMN_TYPE_DOUBLE:
 
 			obj->cql_result->get_double(column, tmp_value_double);
+
+			if (column_type != orig_column_type && tmp_value_double == 0) {
+				RETURN_NULL();
+			}
+
 			RETURN_DOUBLE(tmp_value_double);
 
 		break;
@@ -1055,6 +1069,11 @@ PHP_METHOD(CqlResult, get)
 		case cql::CQL_COLUMN_TYPE_FLOAT:
 
 			obj->cql_result->get_float(column, tmp_value_float);
+
+			if (column_type != orig_column_type && tmp_value_float == 0) {
+				RETURN_NULL();
+			}
+
 			RETURN_DOUBLE(tmp_value_float);
 
 		break;
@@ -1062,6 +1081,11 @@ PHP_METHOD(CqlResult, get)
 		case cql::CQL_COLUMN_TYPE_INT:
 
 			obj->cql_result->get_int(column, tmp_value_int);
+
+			if (column_type != orig_column_type && tmp_value_int == 0) {
+				RETURN_NULL();
+			}
+
 			RETURN_LONG(tmp_value_int);
 
 		break;
@@ -1299,6 +1323,10 @@ PHP_METHOD(CqlResult, get)
 			// Driver doesn't have method for getting timestamp [workaround]
 			obj->cql_result->get_bigint(column, tmp_value_big_int);
 
+			if (column_type != orig_column_type && tmp_value_big_int == 0) {
+				RETURN_NULL();
+			}
+
 			if (tmp_value_big_int > 1000) {
 				ts  = (time_t) (tmp_value_big_int / 1000);
 			}
@@ -1315,6 +1343,11 @@ PHP_METHOD(CqlResult, get)
 		case cql::CQL_COLUMN_TYPE_VARCHAR:
 
 			obj->cql_result->get_string(column, tmp_value_string);
+
+			if (tmp_value_string.length() < 1) {
+				RETURN_NULL();
+			}
+
 			RETURN_STRING(tmp_value_string.c_str(), 1);
 
 		break;
@@ -1337,6 +1370,11 @@ PHP_METHOD(CqlResult, get)
 			}
 
 			tmp_value_string = ss.str();
+
+			if (tmp_value_string.length() < 1) {
+				RETURN_NULL();
+			}
+
 			RETURN_STRING(tmp_value_string.c_str(), 1);
 
 		break;
@@ -1444,6 +1482,28 @@ PHP_MINIT_FUNCTION(cassandra)
 	zend_declare_class_constant_long(php_cql_sc_entry, "CQL_CONSISTENCY_EACH_QUORUM",  sizeof("CQL_CONSISTENCY_EACH_QUORUM")-1,  cql::CQL_CONSISTENCY_EACH_QUORUM TSRMLS_CC);
 	zend_declare_class_constant_long(php_cql_sc_entry, "CQL_CONSISTENCY_DEFAULT",      sizeof("CQL_CONSISTENCY_DEFAULT")-1,      cql::CQL_CONSISTENCY_DEFAULT TSRMLS_CC);
 
+	zend_declare_class_constant_long(php_cql_sc_entry, "CQL_COLUMN_TYPE_UNKNOWN",      sizeof("CQL_COLUMN_TYPE_UNKNOWN")-1,      cql::CQL_COLUMN_TYPE_UNKNOWN TSRMLS_CC);
+	zend_declare_class_constant_long(php_cql_sc_entry, "CQL_COLUMN_TYPE_CUSTOM",       sizeof("CQL_COLUMN_TYPE_CUSTOM")-1,       cql::CQL_COLUMN_TYPE_CUSTOM TSRMLS_CC);
+	zend_declare_class_constant_long(php_cql_sc_entry, "CQL_COLUMN_TYPE_ASCII",        sizeof("CQL_COLUMN_TYPE_ASCII")-1,        cql::CQL_COLUMN_TYPE_ASCII TSRMLS_CC);
+	zend_declare_class_constant_long(php_cql_sc_entry, "CQL_COLUMN_TYPE_BIGINT",       sizeof("CQL_COLUMN_TYPE_BIGINT")-1,       cql::CQL_COLUMN_TYPE_BIGINT TSRMLS_CC);
+	zend_declare_class_constant_long(php_cql_sc_entry, "CQL_COLUMN_TYPE_BLOB",         sizeof("CQL_COLUMN_TYPE_BLOB")-1,         cql::CQL_COLUMN_TYPE_BLOB TSRMLS_CC);
+	zend_declare_class_constant_long(php_cql_sc_entry, "CQL_COLUMN_TYPE_BOOLEAN",      sizeof("CQL_COLUMN_TYPE_BOOLEAN")-1,      cql::CQL_COLUMN_TYPE_BOOLEAN TSRMLS_CC);
+	zend_declare_class_constant_long(php_cql_sc_entry, "CQL_COLUMN_TYPE_COUNTER",      sizeof("CQL_COLUMN_TYPE_COUNTER")-1,      cql::CQL_COLUMN_TYPE_COUNTER TSRMLS_CC);
+	zend_declare_class_constant_long(php_cql_sc_entry, "CQL_COLUMN_TYPE_DECIMAL",      sizeof("CQL_COLUMN_TYPE_DECIMAL")-1,      cql::CQL_COLUMN_TYPE_DECIMAL TSRMLS_CC);
+	zend_declare_class_constant_long(php_cql_sc_entry, "CQL_COLUMN_TYPE_DOUBLE",       sizeof("CQL_COLUMN_TYPE_DOUBLE")-1,       cql::CQL_COLUMN_TYPE_DOUBLE TSRMLS_CC);
+	zend_declare_class_constant_long(php_cql_sc_entry, "CQL_COLUMN_TYPE_FLOAT",        sizeof("CQL_COLUMN_TYPE_FLOAT"),          cql::CQL_COLUMN_TYPE_FLOAT TSRMLS_CC);
+	zend_declare_class_constant_long(php_cql_sc_entry, "CQL_COLUMN_TYPE_INT",          sizeof("CQL_COLUMN_TYPE_INT")-1,          cql::CQL_COLUMN_TYPE_INT TSRMLS_CC);
+	zend_declare_class_constant_long(php_cql_sc_entry, "CQL_COLUMN_TYPE_TEXT",         sizeof("CQL_COLUMN_TYPE_TEXT")-1,         cql::CQL_COLUMN_TYPE_TEXT TSRMLS_CC);
+	zend_declare_class_constant_long(php_cql_sc_entry, "CQL_COLUMN_TYPE_TIMESTAMP",    sizeof("CQL_COLUMN_TYPE_TIMESTAMP")-1,    cql::CQL_COLUMN_TYPE_TIMESTAMP TSRMLS_CC);
+	zend_declare_class_constant_long(php_cql_sc_entry, "CQL_COLUMN_TYPE_UUID",         sizeof("CQL_COLUMN_TYPE_UUID")-1,         cql::CQL_COLUMN_TYPE_UUID TSRMLS_CC);
+	zend_declare_class_constant_long(php_cql_sc_entry, "CQL_COLUMN_TYPE_VARCHAR",      sizeof("CQL_COLUMN_TYPE_VARCHAR")-1,      cql::CQL_COLUMN_TYPE_VARCHAR TSRMLS_CC);
+	zend_declare_class_constant_long(php_cql_sc_entry, "CQL_COLUMN_TYPE_VARINT",       sizeof("CQL_COLUMN_TYPE_VARINT")-1,       cql::CQL_COLUMN_TYPE_VARINT TSRMLS_CC);
+	zend_declare_class_constant_long(php_cql_sc_entry, "CQL_COLUMN_TYPE_TIMEUUID",     sizeof("CQL_COLUMN_TYPE_TIMEUUID")-1,     cql::CQL_COLUMN_TYPE_TIMEUUID TSRMLS_CC);
+	zend_declare_class_constant_long(php_cql_sc_entry, "CQL_COLUMN_TYPE_INET",         sizeof("CQL_COLUMN_TYPE_INET")-1,         cql::CQL_COLUMN_TYPE_INET TSRMLS_CC);
+	zend_declare_class_constant_long(php_cql_sc_entry, "CQL_COLUMN_TYPE_LIST",         sizeof("CQL_COLUMN_TYPE_LIST")-1,         cql::CQL_COLUMN_TYPE_LIST TSRMLS_CC);
+	zend_declare_class_constant_long(php_cql_sc_entry, "CQL_COLUMN_TYPE_MAP",          sizeof("CQL_COLUMN_TYPE_MAP")-1,          cql::CQL_COLUMN_TYPE_MAP TSRMLS_CC);
+	zend_declare_class_constant_long(php_cql_sc_entry, "CQL_COLUMN_TYPE_SET",          sizeof("CQL_COLUMN_TYPE_SET")-1,          cql::CQL_COLUMN_TYPE_SET TSRMLS_CC);
+
 	// INIT CqlBuilder
 	INIT_CLASS_ENTRY(ce, "CqlBuilder", php_cql_builder_class_methods);
 	php_cql_builder_sc_entry                 = zend_register_internal_class(&ce TSRMLS_CC);
@@ -1499,13 +1559,6 @@ PHP_MINIT_FUNCTION(cassandra)
 	php_cql_result_sc_entry                  = zend_register_internal_class(&ce TSRMLS_CC);
 	php_cql_result_sc_entry->create_object   = php_cql_result_object_new;
 	cql_result_handlers.clone_obj            = NULL;
-
-	zend_declare_class_constant_long(php_cql_result_sc_entry, "TYPE_BIG_INT",  sizeof("TYPE_BIG_INT")-1, CQL_RESULT_TYPE_BIG_INT TSRMLS_CC);
-	zend_declare_class_constant_long(php_cql_result_sc_entry, "TYPE_BOOL",     sizeof("TYPE_BOOL")-1,    CQL_RESULT_TYPE_BOOL TSRMLS_CC);
-	zend_declare_class_constant_long(php_cql_result_sc_entry, "TYPE_DOUBLE",   sizeof("TYPE_DOUBLE")-1,  CQL_RESULT_TYPE_DOUBLE TSRMLS_CC);
-	zend_declare_class_constant_long(php_cql_result_sc_entry, "TYPE_INT",      sizeof("TYPE_INT")-1,     CQL_RESULT_TYPE_INT TSRMLS_CC);
-	zend_declare_class_constant_long(php_cql_result_sc_entry, "TYPE_STRING",   sizeof("TYPE_STRING")-1,  CQL_RESULT_TYPE_STRING TSRMLS_CC);
-	zend_declare_class_constant_long(php_cql_result_sc_entry, "TYPE_UUID",     sizeof("TYPE_UUID")-1,    CQL_RESULT_TYPE_UUID TSRMLS_CC);
 
 	cql::cql_initialize();
 	return SUCCESS;
