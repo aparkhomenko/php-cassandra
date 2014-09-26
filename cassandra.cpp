@@ -768,7 +768,7 @@ PHP_METHOD(CqlQuery, __construct)
 		return;
 	}
 
-	obj->cql_query = boost::shared_ptr<cql::cql_query_t> (new cql::cql_query_t(query_string, cql::CQL_CONSISTENCY_DEFAULT, is_traced));
+	obj->cql_query = boost::shared_ptr<cql::cql_query_t> (new cql::cql_query_t(query_string, cql::CQL_CONSISTENCY_DEFAULT, is_traced, false));
 	helper_cql_query_set_consistency(obj->cql_query, consistency);
 
 	zend_update_property_string(php_cql_query_sc_entry, t, "queryString", sizeof("queryString")-1, query_string TSRMLS_CC);
