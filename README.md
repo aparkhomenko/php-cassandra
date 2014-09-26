@@ -9,9 +9,9 @@ The library use official c++ driver by DataStax https://github.com/datastax/cpp-
 Before build php-cassandra you should download and install DataStax C++ Driver for Apache Cassandra.
 
 ```
-git clone https://github.com/datastax/cpp-driver.git
+git clone https://github.com/datastax/cpp-driver/ --branch deprecated --single-branch cpp-driver
 cd cpp-driver
-cmake . && make && make cql_demo && make cql_test && make test && make install
+cmake . && make && make install
 ```
 
 ```
