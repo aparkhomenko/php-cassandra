@@ -1105,9 +1105,12 @@ PHP_METHOD(CqlResult, get)
 
 		case cql::CQL_COLUMN_TYPE_MAP:
 
-			php_array_init(return_value);
-			obj->cql_result->get_map(column, tmp_collection_map);
+			if (!obj->cql_result->get_map(column, tmp_collection_map) || tmp_collection_map == NULL) {
+				RETURN_NULL();
+				return;
+			}
 
+			php_array_init(return_value);
 			ALLOC_INIT_ZVAL(tmp_zval);
 
 			for (size_t i = 0; i < tmp_collection_map->size(); ++i) {
@@ -1234,9 +1237,12 @@ PHP_METHOD(CqlResult, get)
 
 		case cql::CQL_COLUMN_TYPE_LIST:
 
-			php_array_init(return_value);
+			if (!obj->cql_result->get_list(column, tmp_collection_list) || tmp_collection_list == NULL) {
+				RETURN_NULL();
+				return;
+			}
 
-			obj->cql_result->get_list(column, tmp_collection_list);
+			php_array_init(return_value);
 
 			for (size_t i = 0; i < tmp_collection_list->size(); ++i) {
 
@@ -1283,9 +1289,12 @@ PHP_METHOD(CqlResult, get)
 
 		case cql::CQL_COLUMN_TYPE_SET:
 
-			php_array_init(return_value);
+			if (!obj->cql_result->get_set(column, tmp_collection_set) || tmp_collection_set == NULL) {
+				RETURN_NULL();
+				return;
+			}
 
-			obj->cql_result->get_set(column, tmp_collection_set);
+			php_array_init(return_value);
 
 			for (size_t i = 0; i < tmp_collection_set->size(); ++i) {
 
