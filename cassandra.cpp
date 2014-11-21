@@ -317,6 +317,9 @@ ZEND_BEGIN_ARG_INFO_EX(cql_result_get, 0, 0, 1)
 	ZEND_ARG_INFO(0, typeColumn)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_INFO_EX(cql_result_get_row, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_INFO_EX(cql_result_get_column_count, 0, 0, 0)
 ZEND_END_ARG_INFO()
 
@@ -329,6 +332,7 @@ ZEND_END_ARG_INFO()
 PHP_METHOD(CqlResult, __construct);
 PHP_METHOD(CqlResult, exists);
 PHP_METHOD(CqlResult, get);
+PHP_METHOD(CqlResult, getRow);
 PHP_METHOD(CqlResult, getColumnCount);
 PHP_METHOD(CqlResult, getRowCount);
 PHP_METHOD(CqlResult, next);
@@ -337,6 +341,7 @@ const zend_function_entry php_cql_result_class_methods[] = {
 		PHP_ME(CqlResult,  __construct,    cql_result_construct,        ZEND_ACC_PRIVATE|ZEND_ACC_CTOR)
 		PHP_ME(CqlResult,  exists,         cql_result_exists,           ZEND_ACC_PUBLIC)
 		PHP_ME(CqlResult,  get,            cql_result_get,              ZEND_ACC_PUBLIC)
+		PHP_ME(CqlResult,  getRow,         cql_result_get_row,          ZEND_ACC_PUBLIC)
 		PHP_ME(CqlResult,  getColumnCount, cql_result_get_column_count, ZEND_ACC_PUBLIC)
 		PHP_ME(CqlResult,  getRowCount,    cql_result_get_row_count,    ZEND_ACC_PUBLIC)
 		PHP_ME(CqlResult,  next,           cql_result_next,             ZEND_ACC_PUBLIC)
@@ -1002,10 +1007,22 @@ PHP_METHOD(CqlResult, get)
 	int column_len;
 	long   column_type = cql::CQL_COLUMN_TYPE_UNKNOWN;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC,"s|l", &column, &column_len, &column_type) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC,"|sl", &column, &column_len, &column_type) == FAILURE) {
 		return;
 	}
-
+	
+//	if (ZEND_NUM_ARGS() <= 0)
+//	{
+//		php_printf("<br />No arguments - get all columns<br />");
+////		get_column();
+//	}
+//	else
+//	{
+//		php_printf("<br />Column: %s<br />", column);
+////		get_column(column);
+//	}
+//
+//	RETURN_NULL();
 	cql_result_object *obj = (cql_result_object *) zend_object_store_get_object(getThis() TSRMLS_CC);
 
 	cql::cql_bigint_t  tmp_value_big_int  = 0;
@@ -1017,6 +1034,8 @@ PHP_METHOD(CqlResult, get)
 	zval *             tmp_zval;
 	char *             tmp_key;
 	char *             tmp_value_char;
+	int                columns_count      = 1;
+	const char *       column_name = column;
 
 	time_t ts = 0;
 	long orig_column_type = 0;
@@ -1028,385 +1047,469 @@ PHP_METHOD(CqlResult, get)
 	std::vector< cql::cql_byte_t > data;
 	std::stringstream ss;
 
-	cql::cql_column_type_enum type;
-	obj->cql_result->column_type(column, type);
-	orig_column_type = static_cast<long>(type);
-
-	if (column_type == cql::CQL_COLUMN_TYPE_UNKNOWN) {
-		column_type = orig_column_type;
+	if (ZEND_NUM_ARGS() <= 0) {
+		columns_count = obj->cql_result->column_count();
 	}
 
-	switch (column_type) {
+	php_array_init(return_value);
 
-		case cql::CQL_COLUMN_TYPE_BIGINT:
+	for (size_t i = 0; i < columns_count; ++i) {
+		std::string     _keyspace, _table, _column;
 
-			obj->cql_result->get_bigint(column, tmp_value_big_int);
+		if (ZEND_NUM_ARGS() <= 0) {
+			obj->cql_result->column_name(i, _keyspace, _table, _column);
+			column_name = _column.c_str();
+//			column = _column.c_str();
+			php_printf("Keyspace: %s | Table: %s | Column: %s <br />", _keyspace.c_str(), _table.c_str(), column_name);
+		}
 
-			if (column_type != orig_column_type && tmp_value_big_int == 0) {
-				RETURN_NULL();
-				return;
-			}
+		php_printf("<br />Column: %s<br />", column_name);
 
-			RETURN_LONG(tmp_value_big_int);
+		cql::cql_column_type_enum type;
+		obj->cql_result->column_type(column, type);
+		orig_column_type = static_cast<long>(type);
 
-		break;
+		if (column_type == cql::CQL_COLUMN_TYPE_UNKNOWN) {
+			column_type = orig_column_type;
+		}
 
-		case cql::CQL_COLUMN_TYPE_BOOLEAN:
+		switch (column_type) {
 
-			obj->cql_result->get_bool(column, tmp_value_bool);
+			case cql::CQL_COLUMN_TYPE_BIGINT:
 
-			if (column_type != orig_column_type && !tmp_value_bool) {
-				RETURN_NULL();
-				return;
-			}
+				obj->cql_result->get_bigint(column, tmp_value_big_int);
 
-			RETURN_BOOL(tmp_value_bool);
+				if (column_type != orig_column_type && tmp_value_big_int == 0) {
+					add_assoc_null(return_value, column_name);
+					return;
+				}
 
-		break;
+				add_assoc_long(return_value, column_name, tmp_value_big_int);
 
-		case cql::CQL_COLUMN_TYPE_DOUBLE:
+			break;
 
-			obj->cql_result->get_double(column, tmp_value_double);
+			case cql::CQL_COLUMN_TYPE_BOOLEAN:
 
-			if (column_type != orig_column_type && tmp_value_double == 0) {
-				RETURN_NULL();
-				return;
-			}
+				obj->cql_result->get_bool(column, tmp_value_bool);
 
-			RETURN_DOUBLE(tmp_value_double);
+				if (column_type != orig_column_type && !tmp_value_bool) {
+					RETURN_NULL();
+					return;
+				}
 
-		break;
+				RETURN_BOOL(tmp_value_bool);
 
-		case cql::CQL_COLUMN_TYPE_FLOAT:
+			break;
 
-			obj->cql_result->get_float(column, tmp_value_float);
+			case cql::CQL_COLUMN_TYPE_DOUBLE:
 
-			if (column_type != orig_column_type && tmp_value_float == 0) {
-				RETURN_NULL();
-				return;
-			}
+				obj->cql_result->get_double(column, tmp_value_double);
 
-			RETURN_DOUBLE(tmp_value_float);
+				if (column_type != orig_column_type && tmp_value_double == 0) {
+					RETURN_NULL();
+					return;
+				}
 
-		break;
+				RETURN_DOUBLE(tmp_value_double);
 
-		case cql::CQL_COLUMN_TYPE_INT:
+			break;
 
-			obj->cql_result->get_int(column, tmp_value_int);
+			case cql::CQL_COLUMN_TYPE_FLOAT:
 
-			if (column_type != orig_column_type && tmp_value_int == 0) {
-				RETURN_NULL();
-				return;
-			}
+				obj->cql_result->get_float(column, tmp_value_float);
 
-			RETURN_LONG(tmp_value_int);
+				if (column_type != orig_column_type && tmp_value_float == 0) {
+					RETURN_NULL();
+					return;
+				}
 
-		break;
+				RETURN_DOUBLE(tmp_value_float);
 
-		case cql::CQL_COLUMN_TYPE_MAP:
+			break;
 
-			if (!obj->cql_result->get_map(column, tmp_collection_map) || tmp_collection_map == NULL) {
-				RETURN_NULL();
-				return;
-			}
+			case cql::CQL_COLUMN_TYPE_INT:
 
-			php_array_init(return_value);
-			ALLOC_INIT_ZVAL(tmp_zval);
+				obj->cql_result->get_int(column, tmp_value_int);
 
-			for (size_t i = 0; i < tmp_collection_map->size(); ++i) {
+				if (column_type != orig_column_type && tmp_value_int == 0) {
+					RETURN_NULL();
+					return;
+				}
+				php_printf("<br />INT: %d<br />", tmp_value_int);
+				RETURN_LONG(tmp_value_int);
 
-				// detect key type
-				switch (tmp_collection_map->key_type()) {
+			break;
 
-					case cql::CQL_COLUMN_TYPE_BIGINT:
-						tmp_collection_map->get_key_bigint(i, tmp_value_big_int);
-						ZVAL_LONG(tmp_zval, tmp_value_big_int);
-					break;
+			case cql::CQL_COLUMN_TYPE_MAP:
 
-					case cql::CQL_COLUMN_TYPE_BOOLEAN:
-						tmp_collection_map->get_key_bool(i, tmp_value_bool);
-						ZVAL_BOOL(tmp_zval, tmp_value_bool);
-					break;
+				if (!obj->cql_result->get_map(column, tmp_collection_map) || tmp_collection_map == NULL) {
+					RETURN_NULL();
+					return;
+				}
 
-					case cql::CQL_COLUMN_TYPE_DOUBLE:
-						tmp_collection_map->get_key_double(i, tmp_value_double);
-						ZVAL_DOUBLE(tmp_zval, tmp_value_double);
-					break;
+				php_array_init(return_value);
+				ALLOC_INIT_ZVAL(tmp_zval);
 
-					case cql::CQL_COLUMN_TYPE_FLOAT:
-						tmp_collection_map->get_key_float(i, tmp_value_float);
-						ZVAL_DOUBLE(tmp_zval, tmp_value_float);
-					break;
+				for (size_t i = 0; i < tmp_collection_map->size(); ++i) {
 
-					case cql::CQL_COLUMN_TYPE_INT:
-						tmp_collection_map->get_key_int(i, tmp_value_int);
-						ZVAL_LONG(tmp_zval, tmp_value_int);
-					break;
+					// detect key type
+					switch (tmp_collection_map->key_type()) {
 
-					case cql::CQL_COLUMN_TYPE_TIMESTAMP:
-					case cql::CQL_COLUMN_TYPE_TIMEUUID:
+						case cql::CQL_COLUMN_TYPE_BIGINT:
+							tmp_collection_map->get_key_bigint(i, tmp_value_big_int);
+							ZVAL_LONG(tmp_zval, tmp_value_big_int);
+						break;
 
-						// Driver doesn't have method for getting timestamp [workaround]
-						tmp_collection_map->get_key_bigint(i, tmp_value_big_int);
+						case cql::CQL_COLUMN_TYPE_BOOLEAN:
+							tmp_collection_map->get_key_bool(i, tmp_value_bool);
+							ZVAL_BOOL(tmp_zval, tmp_value_bool);
+						break;
 
-						if (tmp_value_big_int > 1000) {
-							ts  = (time_t) (tmp_value_big_int / 1000);
-						}
-						else {
-							ts = (time_t) 0;
-						}
+						case cql::CQL_COLUMN_TYPE_DOUBLE:
+							tmp_collection_map->get_key_double(i, tmp_value_double);
+							ZVAL_DOUBLE(tmp_zval, tmp_value_double);
+						break;
 
-						tmp_key = php_format_date("Y-m-d H:i:s", 11, ts, 1 TSRMLS_CC);
-						ZVAL_STRING(tmp_zval, tmp_key, 1);
+						case cql::CQL_COLUMN_TYPE_FLOAT:
+							tmp_collection_map->get_key_float(i, tmp_value_float);
+							ZVAL_DOUBLE(tmp_zval, tmp_value_float);
+						break;
 
-					break;
+						case cql::CQL_COLUMN_TYPE_INT:
+							tmp_collection_map->get_key_int(i, tmp_value_int);
+							ZVAL_LONG(tmp_zval, tmp_value_int);
+						break;
 
-					case cql::CQL_COLUMN_TYPE_TEXT:
-					case cql::CQL_COLUMN_TYPE_VARCHAR:
-						tmp_collection_map->get_key_string(i, tmp_value_string);
-						ZVAL_STRING(tmp_zval, tmp_value_string.c_str(), 1);
-					break;
+						case cql::CQL_COLUMN_TYPE_TIMESTAMP:
+						case cql::CQL_COLUMN_TYPE_TIMEUUID:
+
+							// Driver doesn't have method for getting timestamp [workaround]
+							tmp_collection_map->get_key_bigint(i, tmp_value_big_int);
+
+							if (tmp_value_big_int > 1000) {
+								ts  = (time_t) (tmp_value_big_int / 1000);
+							}
+							else {
+								ts = (time_t) 0;
+							}
+
+							tmp_key = php_format_date("Y-m-d H:i:s", 11, ts, 1 TSRMLS_CC);
+							ZVAL_STRING(tmp_zval, tmp_key, 1);
+
+						break;
+
+						case cql::CQL_COLUMN_TYPE_TEXT:
+						case cql::CQL_COLUMN_TYPE_VARCHAR:
+							tmp_collection_map->get_key_string(i, tmp_value_string);
+							ZVAL_STRING(tmp_zval, tmp_value_string.c_str(), 1);
+						break;
+
+					}
+
+					if (tmp_zval->type != IS_STRING) {
+						convert_to_string_ex(&tmp_zval);
+					}
+
+					tmp_key = Z_STRVAL_P(tmp_zval);
+
+					// detect value type and add new element to array
+					switch (tmp_collection_map->value_type()) {
+
+						case cql::CQL_COLUMN_TYPE_BIGINT:
+							tmp_collection_map->get_value_bigint(i, tmp_value_big_int);
+							add_assoc_long(return_value, tmp_key, tmp_value_big_int);
+						break;
+
+						case cql::CQL_COLUMN_TYPE_BOOLEAN:
+							tmp_collection_map->get_value_bool(i, tmp_value_bool);
+							add_assoc_bool(return_value, tmp_key, tmp_value_bool);
+						break;
+
+						case cql::CQL_COLUMN_TYPE_DOUBLE:
+							tmp_collection_map->get_value_double(i, tmp_value_double);
+							add_assoc_double(return_value, tmp_key, tmp_value_double);
+						break;
+
+						case cql::CQL_COLUMN_TYPE_FLOAT:
+							tmp_collection_map->get_value_float(i, tmp_value_float);
+							add_assoc_double(return_value, tmp_key, tmp_value_float);
+						break;
+
+						case cql::CQL_COLUMN_TYPE_INT:
+							tmp_collection_map->get_value_int(i, tmp_value_int);
+							add_assoc_long(return_value, tmp_key, tmp_value_int);
+						break;
+
+						case cql::CQL_COLUMN_TYPE_TIMESTAMP:
+						case cql::CQL_COLUMN_TYPE_TIMEUUID:
+
+							// Driver doesn't have method for getting timestamp [workaround]
+							tmp_collection_map->get_value_bigint(i, tmp_value_big_int);
+
+							if (tmp_value_big_int > 1000) {
+								ts  = (time_t) (tmp_value_big_int / 1000);
+							}
+							else {
+								ts = (time_t) 0;
+							}
+
+							tmp_value_char = php_format_date("Y-m-d H:i:s", 11, ts, 1 TSRMLS_CC);
+							add_assoc_string(return_value, tmp_key, tmp_value_char, 1);
+
+						break;
+
+						case cql::CQL_COLUMN_TYPE_TEXT:
+						case cql::CQL_COLUMN_TYPE_VARCHAR:
+							tmp_collection_map->get_value_string(i, tmp_value_string);
+							add_assoc_string(return_value, tmp_key, (char *) tmp_value_string.c_str(), 1);
+						break;
+
+					}
 
 				}
 
-				if (tmp_zval->type != IS_STRING) {
-					convert_to_string_ex(&tmp_zval);
+				return;
+
+			break;
+
+			case cql::CQL_COLUMN_TYPE_LIST:
+
+				if (!obj->cql_result->get_list(column, tmp_collection_list) || tmp_collection_list == NULL) {
+					RETURN_NULL();
+					return;
 				}
 
-				tmp_key = Z_STRVAL_P(tmp_zval);
+				php_array_init(return_value);
 
-				// detect value type and add new element to array
-				switch (tmp_collection_map->value_type()) {
+				for (size_t i = 0; i < tmp_collection_list->size(); ++i) {
 
-					case cql::CQL_COLUMN_TYPE_BIGINT:
-						tmp_collection_map->get_value_bigint(i, tmp_value_big_int);
-						add_assoc_long(return_value, tmp_key, tmp_value_big_int);
-					break;
+					switch (tmp_collection_list->element_type()) {
 
-					case cql::CQL_COLUMN_TYPE_BOOLEAN:
-						tmp_collection_map->get_value_bool(i, tmp_value_bool);
-						add_assoc_bool(return_value, tmp_key, tmp_value_bool);
-					break;
+						case cql::CQL_COLUMN_TYPE_BIGINT:
+							tmp_collection_list->get_bigint(i, tmp_value_big_int);
+							add_next_index_long(return_value, tmp_value_big_int);
+						break;
 
-					case cql::CQL_COLUMN_TYPE_DOUBLE:
-						tmp_collection_map->get_value_double(i, tmp_value_double);
-						add_assoc_double(return_value, tmp_key, tmp_value_double);
-					break;
+						case cql::CQL_COLUMN_TYPE_BOOLEAN:
+							tmp_collection_list->get_bool(i, tmp_value_bool);
+							add_next_index_bool(return_value, tmp_value_bool);
+						break;
 
-					case cql::CQL_COLUMN_TYPE_FLOAT:
-						tmp_collection_map->get_value_float(i, tmp_value_float);
-						add_assoc_double(return_value, tmp_key, tmp_value_float);
-					break;
+						case cql::CQL_COLUMN_TYPE_DOUBLE:
+							tmp_collection_list->get_double(i, tmp_value_double);
+							add_next_index_double(return_value, tmp_value_double);
+						break;
 
-					case cql::CQL_COLUMN_TYPE_INT:
-						tmp_collection_map->get_value_int(i, tmp_value_int);
-						add_assoc_long(return_value, tmp_key, tmp_value_int);
-					break;
+						case cql::CQL_COLUMN_TYPE_FLOAT:
+							tmp_collection_list->get_float(i, tmp_value_float);
+							add_next_index_double(return_value, tmp_value_float);
+						break;
 
-					case cql::CQL_COLUMN_TYPE_TIMESTAMP:
-					case cql::CQL_COLUMN_TYPE_TIMEUUID:
+						case cql::CQL_COLUMN_TYPE_INT:
+							tmp_collection_list->get_int(i, tmp_value_int);
+							add_next_index_long(return_value, tmp_value_int);
+						break;
 
-						// Driver doesn't have method for getting timestamp [workaround]
-						tmp_collection_map->get_value_bigint(i, tmp_value_big_int);
+						case cql::CQL_COLUMN_TYPE_VARCHAR:
+						case cql::CQL_COLUMN_TYPE_TEXT:
+							tmp_collection_list->get_string(i, tmp_value_string);
+							add_next_index_string(return_value, tmp_value_string.c_str(), 1);
+						break;
 
-						if (tmp_value_big_int > 1000) {
-							ts  = (time_t) (tmp_value_big_int / 1000);
-						}
-						else {
-							ts = (time_t) 0;
-						}
-
-						tmp_value_char = php_format_date("Y-m-d H:i:s", 11, ts, 1 TSRMLS_CC);
-						add_assoc_string(return_value, tmp_key, tmp_value_char, 1);
-
-					break;
-
-					case cql::CQL_COLUMN_TYPE_TEXT:
-					case cql::CQL_COLUMN_TYPE_VARCHAR:
-						tmp_collection_map->get_value_string(i, tmp_value_string);
-						add_assoc_string(return_value, tmp_key, (char *) tmp_value_string.c_str(), 1);
-					break;
+					}
 
 				}
 
-			}
-
-			return;
-
-		break;
-
-		case cql::CQL_COLUMN_TYPE_LIST:
-
-			if (!obj->cql_result->get_list(column, tmp_collection_list) || tmp_collection_list == NULL) {
-				RETURN_NULL();
 				return;
-			}
 
-			php_array_init(return_value);
+			break;
 
-			for (size_t i = 0; i < tmp_collection_list->size(); ++i) {
+			case cql::CQL_COLUMN_TYPE_SET:
 
-				switch (tmp_collection_list->element_type()) {
+				if (!obj->cql_result->get_set(column, tmp_collection_set) || tmp_collection_set == NULL) {
+					RETURN_NULL();
+					return;
+				}
 
-					case cql::CQL_COLUMN_TYPE_BIGINT:
-						tmp_collection_list->get_bigint(i, tmp_value_big_int);
-						add_next_index_long(return_value, tmp_value_big_int);
-					break;
+				php_array_init(return_value);
 
-					case cql::CQL_COLUMN_TYPE_BOOLEAN:
-						tmp_collection_list->get_bool(i, tmp_value_bool);
-						add_next_index_bool(return_value, tmp_value_bool);
-					break;
+				for (size_t i = 0; i < tmp_collection_set->size(); ++i) {
 
-					case cql::CQL_COLUMN_TYPE_DOUBLE:
-						tmp_collection_list->get_double(i, tmp_value_double);
-						add_next_index_double(return_value, tmp_value_double);
-					break;
+					switch (tmp_collection_set->element_type()) {
 
-					case cql::CQL_COLUMN_TYPE_FLOAT:
-						tmp_collection_list->get_float(i, tmp_value_float);
-						add_next_index_double(return_value, tmp_value_float);
-					break;
+						case cql::CQL_COLUMN_TYPE_BIGINT:
+							tmp_collection_set->get_bigint(i, tmp_value_big_int);
+							add_next_index_long(return_value, tmp_value_big_int);
+						break;
 
-					case cql::CQL_COLUMN_TYPE_INT:
-						tmp_collection_list->get_int(i, tmp_value_int);
-						add_next_index_long(return_value, tmp_value_int);
-					break;
+						case cql::CQL_COLUMN_TYPE_BOOLEAN:
+							tmp_collection_set->get_bool(i, tmp_value_bool);
+							add_next_index_bool(return_value, tmp_value_bool);
+						break;
 
-					case cql::CQL_COLUMN_TYPE_VARCHAR:
-					case cql::CQL_COLUMN_TYPE_TEXT:
-						tmp_collection_list->get_string(i, tmp_value_string);
-						add_next_index_string(return_value, tmp_value_string.c_str(), 1);
-					break;
+						case cql::CQL_COLUMN_TYPE_DOUBLE:
+							tmp_collection_set->get_double(i, tmp_value_double);
+							add_next_index_double(return_value, tmp_value_double);
+						break;
+
+						case cql::CQL_COLUMN_TYPE_FLOAT:
+							tmp_collection_set->get_float(i, tmp_value_float);
+							add_next_index_double(return_value, tmp_value_float);
+						break;
+
+						case cql::CQL_COLUMN_TYPE_INT:
+							tmp_collection_set->get_int(i, tmp_value_int);
+							add_next_index_long(return_value, tmp_value_int);
+						break;
+
+						case cql::CQL_COLUMN_TYPE_VARCHAR:
+						case cql::CQL_COLUMN_TYPE_TEXT:
+							tmp_collection_set->get_string(i, tmp_value_string);
+							add_next_index_string(return_value, tmp_value_string.c_str(), 1);
+						break;
+
+					}
 
 				}
 
-			}
-
-			return;
-
-		break;
-
-		case cql::CQL_COLUMN_TYPE_SET:
-
-			if (!obj->cql_result->get_set(column, tmp_collection_set) || tmp_collection_set == NULL) {
-				RETURN_NULL();
 				return;
-			}
 
-			php_array_init(return_value);
+			break;
 
-			for (size_t i = 0; i < tmp_collection_set->size(); ++i) {
+			case cql::CQL_COLUMN_TYPE_TIMESTAMP:
+			case cql::CQL_COLUMN_TYPE_TIMEUUID:
 
-				switch (tmp_collection_set->element_type()) {
+				// Driver doesn't have method for getting timestamp [workaround]
+				obj->cql_result->get_bigint(column, tmp_value_big_int);
 
-					case cql::CQL_COLUMN_TYPE_BIGINT:
-						tmp_collection_set->get_bigint(i, tmp_value_big_int);
-						add_next_index_long(return_value, tmp_value_big_int);
-					break;
+				if (column_type != orig_column_type && tmp_value_big_int == 0) {
+					RETURN_NULL();
+					return;
+				}
 
-					case cql::CQL_COLUMN_TYPE_BOOLEAN:
-						tmp_collection_set->get_bool(i, tmp_value_bool);
-						add_next_index_bool(return_value, tmp_value_bool);
-					break;
+				if (tmp_value_big_int > 1000) {
+					ts  = (time_t) (tmp_value_big_int / 1000);
+				}
+				else {
+					ts = (time_t) 0;
+				}
 
-					case cql::CQL_COLUMN_TYPE_DOUBLE:
-						tmp_collection_set->get_double(i, tmp_value_double);
-						add_next_index_double(return_value, tmp_value_double);
-					break;
+				tmp_value_char = php_format_date("Y-m-d H:i:s", 11, ts, 1 TSRMLS_CC);
+				RETURN_STRING(tmp_value_char, 1);
 
-					case cql::CQL_COLUMN_TYPE_FLOAT:
-						tmp_collection_set->get_float(i, tmp_value_float);
-						add_next_index_double(return_value, tmp_value_float);
-					break;
+			break;
 
-					case cql::CQL_COLUMN_TYPE_INT:
-						tmp_collection_set->get_int(i, tmp_value_int);
-						add_next_index_long(return_value, tmp_value_int);
-					break;
+			case cql::CQL_COLUMN_TYPE_TEXT:
+			case cql::CQL_COLUMN_TYPE_VARCHAR:
 
-					case cql::CQL_COLUMN_TYPE_VARCHAR:
-					case cql::CQL_COLUMN_TYPE_TEXT:
-						tmp_collection_set->get_string(i, tmp_value_string);
-						add_next_index_string(return_value, tmp_value_string.c_str(), 1);
-					break;
+				obj->cql_result->get_string(column, tmp_value_string);
+
+				if (tmp_value_string.length() < 1) {
+					RETURN_NULL();
+					return;
+				}
+
+				RETURN_STRING(tmp_value_string.c_str(), 1);
+
+			break;
+
+			case cql::CQL_COLUMN_TYPE_UUID:
+
+				obj->cql_result->get_data(column, data);
+
+				for (size_t i = 0; i < data.size(); ++i) {
+
+					unsigned char * ch = reinterpret_cast<unsigned char *>(&data[i]);
+
+					int c = (int) *ch;
+					ss << std::setfill('0') << std::setw(2) << std::hex << c;
+
+					if (i == 3 || i == 5 || i == 7 || i == 9) {
+						ss << "-";
+					}
 
 				}
 
-			}
+				tmp_value_string = ss.str();
 
-			return;
-
-		break;
-
-		case cql::CQL_COLUMN_TYPE_TIMESTAMP:
-		case cql::CQL_COLUMN_TYPE_TIMEUUID:
-
-			// Driver doesn't have method for getting timestamp [workaround]
-			obj->cql_result->get_bigint(column, tmp_value_big_int);
-
-			if (column_type != orig_column_type && tmp_value_big_int == 0) {
-				RETURN_NULL();
-				return;
-			}
-
-			if (tmp_value_big_int > 1000) {
-				ts  = (time_t) (tmp_value_big_int / 1000);
-			}
-			else {
-				ts = (time_t) 0;
-			}
-
-			tmp_value_char = php_format_date("Y-m-d H:i:s", 11, ts, 1 TSRMLS_CC);
-			RETURN_STRING(tmp_value_char, 1);
-
-		break;
-
-		case cql::CQL_COLUMN_TYPE_TEXT:
-		case cql::CQL_COLUMN_TYPE_VARCHAR:
-
-			obj->cql_result->get_string(column, tmp_value_string);
-
-			if (tmp_value_string.length() < 1) {
-				RETURN_NULL();
-				return;
-			}
-
-			RETURN_STRING(tmp_value_string.c_str(), 1);
-
-		break;
-
-		case cql::CQL_COLUMN_TYPE_UUID:
-
-			obj->cql_result->get_data(column, data);
-
-			for (size_t i = 0; i < data.size(); ++i) {
-
-				unsigned char * ch = reinterpret_cast<unsigned char *>(&data[i]);
-
-				int c = (int) *ch;
-				ss << std::setfill('0') << std::setw(2) << std::hex << c;
-
-				if (i == 3 || i == 5 || i == 7 || i == 9) {
-					ss << "-";
+				if (tmp_value_string.length() < 1) {
+					RETURN_NULL();
+					return;
 				}
 
-			}
+				RETURN_STRING(tmp_value_string.c_str(), 1);
 
-			tmp_value_string = ss.str();
+			break;
 
-			if (tmp_value_string.length() < 1) {
-				RETURN_NULL();
-				return;
-			}
-
-			RETURN_STRING(tmp_value_string.c_str(), 1);
-
-		break;
-
+		}
 	}
 
 	RETURN_NULL();
+}
+
+PHP_METHOD(CqlResult, getRow)
+{
+	char *mystr;
+    zval *mysubarray;
+    php_array_init(return_value);
+
+    add_index_long(return_value, 42, 123);
+
+    add_next_index_string(return_value, "I should now be found at index 43", 1);
+
+    add_next_index_stringl(return_value, "I'm at 44!", 10, 1);
+	add_assoc_long(return_value, "index_45", 456);
+
+    mystr = estrdup("Forty Five");
+    add_next_index_string(return_value, mystr, 0);
+
+    add_assoc_double(return_value, "pi", 3.1415926535);
+
+    ALLOC_INIT_ZVAL(mysubarray);
+    php_array_init(mysubarray);
+    add_next_index_string(mysubarray, "hello", 1);
+    add_assoc_zval(return_value, "subarray", mysubarray);
+
+	zval **d = NULL;
+	int index = 42;
+
+	zend_hash_find(Z_ARRVAL_P(return_value), "index_45", 9, (void **)&d);
+//
+//	/* Make sure the zval is a string */
+//	convert_to_string(*d);
+
+	RETURN_ZVAL(*d, true, true);
+//	php_printf("<br />return value of index %u = %s <br />", index, Z_STRVAL_PP(d));
+
+//	RETURN_NULL();
+
+//	cql_result_object *obj = (cql_result_object *) zend_object_store_get_object(getThis() TSRMLS_CC);
+//	cql_future_result_object *future_obj = (cql_future_result_object *) zend_object_store_get_object(getThis() TSRMLS_CC);
+//
+////	while (obj->cql_result->next())
+////	{
+//		int				count;
+//		count = obj->cql_result->column_count();
+//		php_printf("%d <br />", count);
+//
+//        for (size_t i = 0; i < obj->cql_result->column_count(); ++i)
+//		{
+//			cql::cql_byte_t		data;
+//			int exists;
+//			std::string keyspace, table, column;
+//
+//			exists = obj->cql_result->exists("test");//get();
+//			obj->cql_result->column_name(i, keyspace, table, column);
+////			php_printf("%u <br />", exists);
+//			php_printf("Keyspace: %s | Table: %s | Column: %s <br />", keyspace.c_str(), table.c_str(), column.c_str());
+////			php_printf("%s", obj->cql_result);
+////			php_echo('xxxx');
+//            //php_print(&data[0])
+//			//php_print(data.size());
+//        }
+////    }
+//
+//	RETURN_NULL();
 }
 
 PHP_METHOD(CqlResult, getColumnCount)
