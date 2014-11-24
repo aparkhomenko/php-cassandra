@@ -26,7 +26,7 @@
 extern "C" {
 #endif
 
-//#define  CQL_USE_BOOST_MULTIPRECISION   true;
+#define  CQL_USE_BOOST_MULTIPRECISION   true;
 
 #include "php.h"
 #include "php_ini.h"
@@ -1418,21 +1418,14 @@ PHP_METHOD(CqlResult, get)
 		{
 
 			obj->cql_result->get_varint(column, tmp_value_varint);
-//			boost::multiprecision::cpp_int __tmp;
-//			tmp_value_varint.convert_to_boost_multiprecision(__tmp);
-//			std::string s = boost::to_string(tmp_value_varint);
-//			php_printf("VARINT: %s", __tmp.str().c_str());
+			boost::multiprecision::cpp_int _tmp_value_varint;
 
-//			if (!tmp_value_varint.is_convertible_to_int64()) {
+			if (_tmp_value_varint.is_zero() && !tmp_value_varint.is_convertible_to_int64()) {
 				RETURN_NULL();
-//				return;
-//			}
-//
-//			cql::cql_bigint_t _tmp_value_varint;
-//			tmp_value_varint.convert_to_int64(_tmp_value_varint);
-//			std::string s = boost::to_string(_tmp_value_varint);
-//			php_printf("VARINT: %s", s.c_str());
-//			RETURN_LONG(_tmp_value_varint);
+				return;
+			}
+
+			RETURN_STRING(_tmp_value_varint.str().c_str(), 1);
 		}
 		break;
 
