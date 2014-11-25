@@ -26,6 +26,8 @@
 extern "C" {
 #endif
 
+#define  CQL_USE_BOOST_MULTIPRECISION   true;
+
 #include "php.h"
 #include "php_ini.h"
 #include "ext/date/php_date.h"
@@ -52,6 +54,8 @@ extern "C" {
 #include <cql/cql_list.hpp>
 #include <cql/cql_set.hpp>
 #include <cql/cql_map.hpp>
+#include <cql/cql_decimal.hpp>
+#include <cql/cql_varint.hpp>
 
 
 /* If you declare any globals in php_cassandra.h uncomment this:
@@ -1025,6 +1029,11 @@ PHP_METHOD(CqlResult, get)
 	char *             tmp_value_char;
 	int                columns_count      = 1;
 	zval *             subarray;
+	boost::asio::ip::address   tmp_value_inet;
+	cql::cql_decimal_t         tmp_value_decimal;
+	cql::cql_varint_t          tmp_value_varint;
+	double                     _tmp_value_decimal;
+	boost::multiprecision::cpp_int _tmp_value_varint;
 
 	time_t ts = 0;
 	long orig_column_type = 0;
@@ -1384,6 +1393,8 @@ PHP_METHOD(CqlResult, get)
 
 			break;
 
+			case cql::CQL_COLUMN_TYPE_ASCII:
+			case cql::CQL_COLUMN_TYPE_BLOB:
 			case cql::CQL_COLUMN_TYPE_TEXT:
 			case cql::CQL_COLUMN_TYPE_VARCHAR:
 
@@ -1398,9 +1409,50 @@ PHP_METHOD(CqlResult, get)
 
 			break;
 
-			case cql::CQL_COLUMN_TYPE_UUID:
+			case cql::CQL_COLUMN_TYPE_INET:
 
-				obj->cql_result->get_data(column, data);
+				obj->cql_result->get_inet(column, tmp_value_inet);
+
+				if (tmp_value_inet.is_unspecified()) {
+					add_assoc_null(return_value, column);
+					continue;
+				}
+
+				add_assoc_string(return_value, column, const_cast<char*>(tmp_value_inet.to_string().c_str()), 1);
+
+			break;
+
+			case cql::CQL_COLUMN_TYPE_DECIMAL:
+
+				obj->cql_result->get_decimal(column, tmp_value_decimal);
+
+				if (!tmp_value_decimal.is_convertible_to_double()) {
+					add_assoc_null(return_value, column);
+					continue;
+				}
+
+				tmp_value_decimal.convert_to_double(_tmp_value_decimal);
+
+				add_assoc_double(return_value, column, _tmp_value_decimal);
+
+			break;
+
+			case cql::CQL_COLUMN_TYPE_VARINT:
+
+				obj->cql_result->get_varint(column, tmp_value_varint);
+
+				tmp_value_varint.convert_to_boost_multiprecision(_tmp_value_varint);
+
+				if (_tmp_value_varint.is_zero() && !tmp_value_varint.is_convertible_to_int64()) {
+					add_assoc_null(return_value, column);
+					continue;
+				}
+
+				add_assoc_string(return_value, column, const_cast<char*>(_tmp_value_varint.str().c_str()), 1);
+
+			break;
+
+			case cql::CQL_COLUMN_TYPE_UUID:
 
 				for (size_t i = 0; i < data.size(); ++i) {
 
