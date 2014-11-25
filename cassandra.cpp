@@ -1024,6 +1024,8 @@ PHP_METHOD(CqlResult, get)
 	zval *                     tmp_zval;
 	char *                     tmp_key;
 	char *                     tmp_value_char;
+	double                     _tmp_value_decimal;
+	boost::multiprecision::cpp_int _tmp_value_varint;
 
 	time_t ts = 0;
 	long orig_column_type = 0;
@@ -1407,7 +1409,6 @@ PHP_METHOD(CqlResult, get)
 				return;
 			}
 
-			double _tmp_value_decimal;
 			tmp_value_decimal.convert_to_double(_tmp_value_decimal);
 
 			RETURN_DOUBLE(_tmp_value_decimal);
@@ -1415,18 +1416,18 @@ PHP_METHOD(CqlResult, get)
 		break;
 
 		case cql::CQL_COLUMN_TYPE_VARINT:
-		{
 
 			obj->cql_result->get_varint(column, tmp_value_varint);
-			boost::multiprecision::cpp_int _tmp_value_varint;
+			
+			tmp_value_varint.convert_to_boost_multiprecision(_tmp_value_varint);
 
 			if (_tmp_value_varint.is_zero() && !tmp_value_varint.is_convertible_to_int64()) {
 				RETURN_NULL();
 				return;
 			}
-
+			
 			RETURN_STRING(_tmp_value_varint.str().c_str(), 1);
-		}
+
 		break;
 
 		case cql::CQL_COLUMN_TYPE_UUID:
