@@ -336,7 +336,6 @@ ZEND_END_ARG_INFO()
 PHP_METHOD(CqlResult, __construct);
 PHP_METHOD(CqlResult, exists);
 PHP_METHOD(CqlResult, get);
-PHP_METHOD(CqlResult, getRow);
 PHP_METHOD(CqlResult, getColumnCount);
 PHP_METHOD(CqlResult, getRowCount);
 PHP_METHOD(CqlResult, next);
@@ -345,7 +344,6 @@ const zend_function_entry php_cql_result_class_methods[] = {
 		PHP_ME(CqlResult,  __construct,    cql_result_construct,        ZEND_ACC_PRIVATE|ZEND_ACC_CTOR)
 		PHP_ME(CqlResult,  exists,         cql_result_exists,           ZEND_ACC_PUBLIC)
 		PHP_ME(CqlResult,  get,            cql_result_get,              ZEND_ACC_PUBLIC)
-		PHP_ME(CqlResult,  getRow,         cql_result_get_row,          ZEND_ACC_PUBLIC)
 		PHP_ME(CqlResult,  getColumnCount, cql_result_get_column_count, ZEND_ACC_PUBLIC)
 		PHP_ME(CqlResult,  getRowCount,    cql_result_get_row_count,    ZEND_ACC_PUBLIC)
 		PHP_ME(CqlResult,  next,           cql_result_next,             ZEND_ACC_PUBLIC)
@@ -1490,71 +1488,6 @@ PHP_METHOD(CqlResult, get)
 		}
 		RETURN_NULL();
 	}
-}
-
-PHP_METHOD(CqlResult, getRow)
-{
-	char *mystr;
-    zval *mysubarray;
-    php_array_init(return_value);
-
-    add_index_long(return_value, 42, 123);
-
-    add_next_index_string(return_value, "I should now be found at index 43", 1);
-
-    add_next_index_stringl(return_value, "I'm at 44!", 10, 1);
-	add_assoc_long(return_value, "index_45", 456);
-
-    mystr = estrdup("Forty Five");
-    add_next_index_string(return_value, mystr, 0);
-
-    add_assoc_double(return_value, "pi", 3.1415926535);
-
-    ALLOC_INIT_ZVAL(mysubarray);
-    php_array_init(mysubarray);
-    add_next_index_string(mysubarray, "hello", 1);
-    add_assoc_zval(return_value, "subarray", mysubarray);
-
-	zval **d = NULL;
-	int index = 42;
-
-	zend_hash_find(Z_ARRVAL_P(return_value), "index_45", 9, (void **)&d);
-//
-//	/* Make sure the zval is a string */
-//	convert_to_string(*d);
-
-	RETURN_ZVAL(*d, true, true);
-//	php_printf("<br />return value of index %u = %s <br />", index, Z_STRVAL_PP(d));
-
-//	RETURN_NULL();
-
-//	cql_result_object *obj = (cql_result_object *) zend_object_store_get_object(getThis() TSRMLS_CC);
-//	cql_future_result_object *future_obj = (cql_future_result_object *) zend_object_store_get_object(getThis() TSRMLS_CC);
-//
-////	while (obj->cql_result->next())
-////	{
-//		int				count;
-//		count = obj->cql_result->column_count();
-//		php_printf("%d <br />", count);
-//
-//        for (size_t i = 0; i < obj->cql_result->column_count(); ++i)
-//		{
-//			cql::cql_byte_t		data;
-//			int exists;
-//			std::string keyspace, table, column;
-//
-//			exists = obj->cql_result->exists("test");//get();
-//			obj->cql_result->column_name(i, keyspace, table, column);
-////			php_printf("%u <br />", exists);
-//			php_printf("Keyspace: %s | Table: %s | Column: %s <br />", keyspace.c_str(), table.c_str(), column.c_str());
-////			php_printf("%s", obj->cql_result);
-////			php_echo('xxxx');
-//            //php_print(&data[0])
-//			//php_print(data.size());
-//        }
-////    }
-//
-//	RETURN_NULL();
 }
 
 PHP_METHOD(CqlResult, getColumnCount)
