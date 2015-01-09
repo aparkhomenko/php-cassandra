@@ -26,6 +26,8 @@
 extern "C" {
 #endif
 
+#define  CQL_USE_BOOST_MULTIPRECISION   true;
+
 #include "php.h"
 #include "php_ini.h"
 #include "ext/date/php_date.h"
@@ -52,6 +54,8 @@ extern "C" {
 #include <cql/cql_list.hpp>
 #include <cql/cql_set.hpp>
 #include <cql/cql_map.hpp>
+#include <cql/cql_decimal.hpp>
+#include <cql/cql_varint.hpp>
 
 
 /* If you declare any globals in php_cassandra.h uncomment this:
@@ -1008,15 +1012,20 @@ PHP_METHOD(CqlResult, get)
 
 	cql_result_object *obj = (cql_result_object *) zend_object_store_get_object(getThis() TSRMLS_CC);
 
-	cql::cql_bigint_t  tmp_value_big_int  = 0;
-	bool               tmp_value_bool     = false;
-	double             tmp_value_double   = 0;
-	float              tmp_value_float    = 0;
-	cql::cql_int_t     tmp_value_int      = 0;
-	std::string        tmp_value_string;
-	zval *             tmp_zval;
-	char *             tmp_key;
-	char *             tmp_value_char;
+	cql::cql_bigint_t          tmp_value_big_int  = 0;
+	bool                       tmp_value_bool     = false;
+	double                     tmp_value_double   = 0;
+	float                      tmp_value_float    = 0;
+	cql::cql_int_t             tmp_value_int      = 0;
+	std::string                tmp_value_string;
+	boost::asio::ip::address   tmp_value_inet;
+	cql::cql_decimal_t         tmp_value_decimal;
+	cql::cql_varint_t          tmp_value_varint;
+	zval *                     tmp_zval;
+	char *                     tmp_key;
+	char *                     tmp_value_char;
+	double                     _tmp_value_decimal;
+	boost::multiprecision::cpp_int _tmp_value_varint;
 
 	time_t ts = 0;
 	long orig_column_type = 0;
@@ -1362,6 +1371,8 @@ PHP_METHOD(CqlResult, get)
 
 		break;
 
+		case cql::CQL_COLUMN_TYPE_ASCII:
+		case cql::CQL_COLUMN_TYPE_BLOB:
 		case cql::CQL_COLUMN_TYPE_TEXT:
 		case cql::CQL_COLUMN_TYPE_VARCHAR:
 
@@ -1373,6 +1384,49 @@ PHP_METHOD(CqlResult, get)
 			}
 
 			RETURN_STRING(tmp_value_string.c_str(), 1);
+
+		break;
+
+		case cql::CQL_COLUMN_TYPE_INET:
+
+			obj->cql_result->get_inet(column, tmp_value_inet);
+
+			if (tmp_value_inet.is_unspecified()) {
+				RETURN_NULL();
+				return;
+			}
+
+			RETURN_STRING(tmp_value_inet.to_string().c_str(), 1);
+
+		break;
+
+		case cql::CQL_COLUMN_TYPE_DECIMAL:
+
+			obj->cql_result->get_decimal(column, tmp_value_decimal);
+
+			if (!tmp_value_decimal.is_convertible_to_double()) {
+				RETURN_NULL();
+				return;
+			}
+
+			tmp_value_decimal.convert_to_double(_tmp_value_decimal);
+
+			RETURN_DOUBLE(_tmp_value_decimal);
+
+		break;
+
+		case cql::CQL_COLUMN_TYPE_VARINT:
+
+			obj->cql_result->get_varint(column, tmp_value_varint);
+			
+			tmp_value_varint.convert_to_boost_multiprecision(_tmp_value_varint);
+
+			if (_tmp_value_varint.is_zero() && !tmp_value_varint.is_convertible_to_int64()) {
+				RETURN_NULL();
+				return;
+			}
+			
+			RETURN_STRING(_tmp_value_varint.str().c_str(), 1);
 
 		break;
 
