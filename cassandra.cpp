@@ -1133,7 +1133,7 @@ PHP_METHOD(CqlResult, get)
 
 							// Driver doesn't have method for getting timestamp [workaround]
 							tmp_collection_map->get_key_bigint(i, tmp_value_big_int);
-
+/*
 							if (tmp_value_big_int > 1000) {
 								ts  = (time_t) (tmp_value_big_int / 1000);
 							}
@@ -1143,6 +1143,8 @@ PHP_METHOD(CqlResult, get)
 
 							tmp_key = php_format_date("Y-m-d H:i:s", 11, ts, 1 TSRMLS_CC);
 							ZVAL_STRING(tmp_zval, tmp_key, 1);
+*/
+							ZVAL_LONG(tmp_zval, tmp_value_big_int);
 
 						break;
 
@@ -1193,7 +1195,7 @@ PHP_METHOD(CqlResult, get)
 
 							// Driver doesn't have method for getting timestamp [workaround]
 							tmp_collection_map->get_value_bigint(i, tmp_value_big_int);
-
+/*
 							if (tmp_value_big_int > 1000) {
 								ts  = (time_t) (tmp_value_big_int / 1000);
 							}
@@ -1203,6 +1205,8 @@ PHP_METHOD(CqlResult, get)
 
 							tmp_value_char = php_format_date("Y-m-d H:i:s", 11, ts, 1 TSRMLS_CC);
 							add_assoc_string(subarray, tmp_key, tmp_value_char, 1);
+*/
+							add_assoc_long(subarray, tmp_key, tmp_value_big_int);
 
 						break;
 
@@ -1336,7 +1340,7 @@ PHP_METHOD(CqlResult, get)
 					add_assoc_null(return_value, column);
 					continue;
 				}
-
+/*
 				if (tmp_value_big_int > 1000) {
 					ts  = (time_t) (tmp_value_big_int / 1000);
 				}
@@ -1346,6 +1350,8 @@ PHP_METHOD(CqlResult, get)
 
 				tmp_value_char = php_format_date("Y-m-d H:i:s", 11, ts, 1 TSRMLS_CC);
 				add_assoc_string(return_value, column, tmp_value_char, 1);
+*/
+				add_assoc_long(return_value, column, tmp_value_big_int);
 
 			break;
 
