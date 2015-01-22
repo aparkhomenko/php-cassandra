@@ -30,9 +30,9 @@ extern "C" {
 
 #include "php.h"
 #include "php_ini.h"
+#include "zend_exceptions.h"
 #include "ext/date/php_date.h"
 #include "ext/standard/info.h"
-#include "php_cassandra.h"
 
 #define  php_array_init(arg)			_array_init((arg), 0 ZEND_FILE_LINE_CC)
 #ifdef   array_init
@@ -43,24 +43,7 @@ extern "C" {
 }
 #endif
 
-#include <boost/asio.hpp>
-#include <cql/cql.hpp>
-#include <cql/cql_connection.hpp>
-#include <cql/cql_session.hpp>
-#include <cql/cql_cluster.hpp>
-#include <cql/cql_builder.hpp>
-#include <cql/cql_result.hpp>
-
-#include <cql/cql_list.hpp>
-#include <cql/cql_set.hpp>
-#include <cql/cql_map.hpp>
-#include <cql/cql_decimal.hpp>
-#include <cql/cql_varint.hpp>
-
-
-/* If you declare any globals in php_cassandra.h uncomment this:
-ZEND_DECLARE_MODULE_GLOBALS(cassandra)
-*/
+#include "php_cassandra.hpp"
 
 /* True global resources - no need for thread safety here */
 static int le_cassandra;
@@ -83,40 +66,8 @@ zend_object_handlers     cql_query_handlers;
 zend_object_handlers     cql_session_handlers;
 zend_object_handlers     cql_result_handlers;
 
-struct cql_builder_object {
-    zend_object                            std;
-    boost::shared_ptr<cql::cql_builder_t>  cql_builder;
-};
-
-struct cql_cluster_object {
-    zend_object                            std;
-    boost::shared_ptr<cql::cql_cluster_t>  cql_cluster;
-};
-
-struct cql_error_object {
-    zend_object                            std;
-    cql::cql_error_t                       cql_error;
-};
-
-struct cql_future_result_object {
-    zend_object                            std;
-    boost::shared_future<cql::cql_future_result_t> cql_future_result;
-};
-
-struct cql_query_object {
-    zend_object                            std;
-    boost::shared_ptr<cql::cql_query_t>    cql_query;
-};
-
-struct cql_session_object {
-    zend_object                            std;
-    boost::shared_ptr<cql::cql_session_t>  cql_session;
-};
-
-struct cql_result_object {
-    zend_object                            std;
-    boost::shared_ptr<cql::cql_result_t>   cql_result;
-};
+/* If you declare any globals in php_cassandra.h uncomment this: */
+ZEND_DECLARE_MODULE_GLOBALS(cassandra)
 
 zend_object_value php_cql_builder_object_new(zend_class_entry *type TSRMLS_DC);
 zend_object_value php_cql_cluster_object_new(zend_class_entry *type TSRMLS_DC);
@@ -319,9 +270,6 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_INFO_EX(cql_result_get, 0, 0, 1)
 	ZEND_ARG_INFO(0, column)
 	ZEND_ARG_INFO(0, typeColumn)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO_EX(cql_result_get_row, 0, 0, 0)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(cql_result_get_column_count, 0, 0, 0)
@@ -601,7 +549,15 @@ PHP_METHOD(CqlCluster, __construct)
 	}
 
 	cql_cluster_object *obj = (cql_cluster_object *) zend_object_store_get_object(getThis() TSRMLS_CC);
-	obj->cql_cluster = boost::shared_ptr<cql::cql_cluster_t>(obj_builder->cql_builder->build());
+	try
+	{
+		obj->cql_cluster = boost::shared_ptr<cql::cql_cluster_t>(obj_builder->cql_builder->build());
+	}
+	catch (cql::cql_no_host_available_exception e)
+	{
+		zend_throw_exception(zend_exception_get_default(TSRMLS_C), "CqlCluster: No Host Available", 0 TSRMLS_CC);
+		RETURN_FALSE;
+	}
 }
 /* }}} */
 
@@ -610,6 +566,7 @@ PHP_METHOD(CqlCluster, __construct)
 PHP_METHOD(CqlCluster, connect)
 {
 	cql_cluster_object *obj = (cql_cluster_object *) zend_object_store_get_object(getThis() TSRMLS_CC);
+	CASSANDRA_G(g_cluster_object) = obj;
 
 	if (obj == NULL || obj->cql_cluster == NULL) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Unable to find obj->cql_cluster in CqlCluster.connect");
@@ -905,6 +862,7 @@ PHP_METHOD(CqlSession, __construct)
 	try {
 
 		cql_session_object *obj = (cql_session_object *) zend_object_store_get_object(getThis() TSRMLS_CC);
+		CASSANDRA_G(g_session_object) = obj;
 		obj->cql_session        = obj_cql_cluster->cql_cluster->connect();
 
 	}
@@ -1698,6 +1656,15 @@ PHP_RINIT_FUNCTION(cassandra)
  */
 PHP_RSHUTDOWN_FUNCTION(cassandra)
 {
+	try {
+		if (CASSANDRA_G(g_cluster_object))
+			CASSANDRA_G(g_cluster_object)->cql_cluster->shutdown(-1);
+
+		if (CASSANDRA_G(g_session_object))
+			CASSANDRA_G(g_session_object)->cql_session->close();
+
+	}
+	catch (std::exception & e) {}
 	return SUCCESS;
 }
 /* }}} */
