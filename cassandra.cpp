@@ -1009,6 +1009,11 @@ PHP_METHOD(CqlResult, get)
 
 	for (size_t i = 0; i < columns_count; ++i) {
 		std::string     _keyspace, _table, _column;
+		tmp_value_big_int = NULL;
+		tmp_value_bool     = false;
+		tmp_value_double   = NULL;
+		tmp_value_float    = NULL;
+		tmp_value_int      = NULL;
 
 		if (ZEND_NUM_ARGS() <= 0) {
 			obj->cql_result->column_name(i, _keyspace, _table, _column);
@@ -1129,11 +1134,16 @@ PHP_METHOD(CqlResult, get)
 						break;
 
 						case cql::CQL_COLUMN_TYPE_TIMESTAMP:
+							// Driver doesn't have method for getting timestamp [workaround]
+							tmp_collection_map->get_key_bigint(i, tmp_value_big_int);
+							ZVAL_LONG(tmp_zval, tmp_value_big_int);
+						break;
+
 						case cql::CQL_COLUMN_TYPE_TIMEUUID:
 
 							// Driver doesn't have method for getting timestamp [workaround]
 							tmp_collection_map->get_key_bigint(i, tmp_value_big_int);
-/*
+
 							if (tmp_value_big_int > 1000) {
 								ts  = (time_t) (tmp_value_big_int / 1000);
 							}
@@ -1143,8 +1153,6 @@ PHP_METHOD(CqlResult, get)
 
 							tmp_key = php_format_date("Y-m-d H:i:s", 11, ts, 1 TSRMLS_CC);
 							ZVAL_STRING(tmp_zval, tmp_key, 1);
-*/
-							ZVAL_LONG(tmp_zval, tmp_value_big_int);
 
 						break;
 
@@ -1191,11 +1199,16 @@ PHP_METHOD(CqlResult, get)
 						break;
 
 						case cql::CQL_COLUMN_TYPE_TIMESTAMP:
+							// Driver doesn't have method for getting timestamp [workaround]
+							tmp_collection_map->get_value_bigint(i, tmp_value_big_int);
+							add_assoc_long(subarray, tmp_key, tmp_value_big_int);
+						break;
+
 						case cql::CQL_COLUMN_TYPE_TIMEUUID:
 
 							// Driver doesn't have method for getting timestamp [workaround]
 							tmp_collection_map->get_value_bigint(i, tmp_value_big_int);
-/*
+
 							if (tmp_value_big_int > 1000) {
 								ts  = (time_t) (tmp_value_big_int / 1000);
 							}
@@ -1205,8 +1218,6 @@ PHP_METHOD(CqlResult, get)
 
 							tmp_value_char = php_format_date("Y-m-d H:i:s", 11, ts, 1 TSRMLS_CC);
 							add_assoc_string(subarray, tmp_key, tmp_value_char, 1);
-*/
-							add_assoc_long(subarray, tmp_key, tmp_value_big_int);
 
 						break;
 
@@ -1331,6 +1342,18 @@ PHP_METHOD(CqlResult, get)
 			break;
 
 			case cql::CQL_COLUMN_TYPE_TIMESTAMP:
+
+				// Driver doesn't have method for getting timestamp [workaround]
+				obj->cql_result->get_bigint(column, tmp_value_big_int);
+				if (tmp_column_type != orig_column_type && tmp_value_big_int == 0) {
+					add_assoc_null(return_value, column);
+					continue;
+				}
+
+				add_assoc_long(return_value, column, tmp_value_big_int);
+
+			break;
+
 			case cql::CQL_COLUMN_TYPE_TIMEUUID:
 
 				// Driver doesn't have method for getting timestamp [workaround]
@@ -1340,7 +1363,7 @@ PHP_METHOD(CqlResult, get)
 					add_assoc_null(return_value, column);
 					continue;
 				}
-/*
+
 				if (tmp_value_big_int > 1000) {
 					ts  = (time_t) (tmp_value_big_int / 1000);
 				}
@@ -1350,8 +1373,6 @@ PHP_METHOD(CqlResult, get)
 
 				tmp_value_char = php_format_date("Y-m-d H:i:s", 11, ts, 1 TSRMLS_CC);
 				add_assoc_string(return_value, column, tmp_value_char, 1);
-*/
-				add_assoc_long(return_value, column, tmp_value_big_int);
 
 			break;
 
