@@ -1458,6 +1458,19 @@ PHP_METHOD(CqlResult, get)
 
 		break;
 
+		case cql::CQL_COLUMN_TYPE_COUNTER:
+
+			obj->cql_result->get_counter(column, tmp_value_big_int);
+
+			if (column_type != orig_column_type && tmp_value_big_int == 0) {
+				RETURN_NULL();
+				return;
+			}
+
+			RETURN_LONG(tmp_value_big_int);
+
+			break;
+
 	}
 
 	RETURN_NULL();
